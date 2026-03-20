@@ -20,9 +20,9 @@
 #####################################################################
 # best practive
 
-wget https://github.com/kubeedge/kubeedge/releases/download/v1.22.1/keadm-v1.22.1-linux-amd64.tar.gz
-tar -zxvf keadm-v1.22.1-linux-amd64.tar.gz
-sudo cp keadm-v1.22.1-linux-amd64/keadm/keadm /usr/local/bin/keadm
+wget https://github.com/kubeedge/kubeedge/releases/download/v1.23.0/keadm-v1.23.0-linux-amd64.tar.gz
+tar -zxvf keadm-v1.23.0-linux-amd64.tar.gz
+sudo cp keadm-v1.23.0-linux-amd64/keadm/keadm /usr/local/bin/keadm
 
 
 sudo chmod +x /usr/local/bin/keadm
@@ -44,6 +44,7 @@ keadm version
 sudo keadm gettoken --kube-config /etc/kubernetes/admin.conf
 
 # consider the nodeport IP of the internal port 10000 why? 31427
+# sudo keadm join --cloudcore-ipport=10.12.10.124:10000 --token=<token>
 sudo keadm join \
   --cloudcore-ipport=10.12.10.124:10000 \
   --token=17bad182c91474d94776646c25ace216d22987a13e0d3aeb54a05271b72c9240.eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE3NDg5MzQ2MjB9._FD8MMsZzdHr9FCFWR77RPsaGrsE1aRdNjElU38K_yw \
