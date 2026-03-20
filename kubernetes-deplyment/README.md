@@ -26,7 +26,7 @@ cd DREAM-Scalable-MaaS
 ### 2. Bring Up the Cluster
 
 Setup:
-- The three nodes: `MasterNode`, `CloudNode`, and `EdgeNode`
+- The three nodes: 'MasterNode', 'CloudNode', 'EdgeNode', and 'EdgeGateWay'
 - go to the k8s website to setup each nodes: https://kubernetes.io/ or follow:
 - /kubernetes-deplyment/notes/node-setup_v1.28.sh or /kubernetes-deplyment/notes/node-setup_v1.29.sh or /kubernetes-deplyment/notes/node-setup_v1.33.sh (We are using v33)
 
@@ -39,9 +39,10 @@ kubectl get nodes
 You should see outputs like this:
 ```
 NAME         STATUS   ROLES           AGE   VERSION
-masternode   Ready    control-plane   ...   v1.29.15
-cloudnode    Ready    worker-node     ...   v1.29.15
+masternode   Ready    control-plane   ...   v1.33
+cloudnode    Ready    worker-node     ...   v1.33
 edgenode     Ready    agent,edge      ...   v1.30.7-kubeedge-v1.20.0
+edgegateway  Ready    edgecore        ...   v1.30.7-kubeedge-v1.20.0
 ```
 
 ---
@@ -67,11 +68,15 @@ edgenode     Ready    agent,edge      ...   v1.30.7-kubeedge-v1.20.0
 - Host ONOS controller, predictive maintenance, and policy manager microservices
 
 ### 🏠 Edge Node
+- OVS bridge (`br0`) configured
+- Connected to ONOS via `tcp://<onos-ip>:6653`
+- Runs agents
+
+### 🏠 Edge Gateway
 - **No CNI plugin** (excluded by label)
 - OVS bridge (`br0`) configured
 - Connected to ONOS via `tcp://<onos-ip>:6653`
-- Hosts simulated devices (pods) manually connected to OVS via veth
-- Runs KubeEdge agents
+- Smart edge IoT devices connected to Rapberry PI
 
 ---
 
@@ -89,9 +94,9 @@ kubectl get pods -A
 
 ## 📅 Recommendations
 
-- Allocate at least **6 CPUs and 8GB RAM per nodes** for smooth deployment.
+- Allocate at least **6 CPUs and 8GB RAM per nodes** for smooth deployment. (This is for virtual machine setup)
 - Use **Ubuntu-jammy base image** (default in this repo).
-- Ensure host system has virtualization extensions enabled (e.g., VT-x/AMD-V).
+- Ensure host system has virtualization extensions enabled (e.g., VT-x/AMD-V). (This is for virtual machine setup)
 
 ---
 

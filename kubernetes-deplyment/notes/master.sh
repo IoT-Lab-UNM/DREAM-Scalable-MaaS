@@ -1,5 +1,5 @@
 #################################################################################################################
-sudo kubeadm init --apiserver-advertise-address=192.168.56.102 --pod-network-cidr=10.244.0.0/16 # 192.168.0.0/16 if Calico CNI is used # 10.244.0.0/16 if Flannel CNI is used
+sudo kubeadm init --apiserver-advertise-address=10.12.11.100 --pod-network-cidr=10.244.0.0/16 # 192.168.0.0/16 if Calico CNI is used # 10.244.0.0/16 if Flannel CNI is used
   # or you can also provide image repo directory if there is a firewall issue or the aboove command got stuck taking longer time
 
 # kubeadm config images list --kubernetes-version v1.29.15 --image-repository registry.k8s.io
@@ -17,7 +17,7 @@ sudo kubeadm init --apiserver-advertise-address=192.168.56.102 --pod-network-cid
 # done
 
 # If the above didnt work:
-sudo kubeadm init --apiserver-advertise-address=192.168.56.102 --pod-network-cidr=10.244.0.0/16 --image-repository registry.k8s.io
+sudo kubeadm init --apiserver-advertise-address=10.12.11.100 --pod-network-cidr=10.244.0.0/16 --image-repository registry.k8s.io
 #################################################################################################################
 
 #########################################################################

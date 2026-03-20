@@ -21,9 +21,9 @@
 #####################################################################
 # best practive
   # wget https://github.com/kubeedge/kubeedge/releases/download/v1.20.0/keadm-v1.20.0-linux-amd64.tar.gz
-wget https://github.com/kubeedge/kubeedge/releases/download/v1.22.1/keadm-v1.22.1-linux-amd64.tar.gz
-tar -zxvf keadm-v1.22.1-linux-amd64.tar.gz
-sudo cp keadm-v1.22.1-linux-amd64/keadm/keadm /usr/local/bin/keadm
+wget https://github.com/kubeedge/kubeedge/releases/download/v1.23.0/keadm-v1.23.0-linux-amd64.tar.gz
+tar -zxvf keadm-v1.23.0-linux-amd64.tar.gz
+sudo cp keadm-v1.23.0-linux-amd64/keadm/keadm /usr/local/bin/keadm
 
 
 sudo chmod +x /usr/local/bin/keadm

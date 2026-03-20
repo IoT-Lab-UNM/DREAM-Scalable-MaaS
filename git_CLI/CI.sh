@@ -27,7 +27,7 @@ git worktree add ../DREAM_1.3-digital-twin digital-twin
 
 # NOTE:
 # - Git will fail if `digital-twin` is already checked out in another worktree.
-# - Use `git worktree list` to confirm before running.
+# - Use `git worktree list` to confirm before running
 
 
 # ------------------------------------------------------------
