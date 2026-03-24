@@ -2,6 +2,20 @@
 # After finishing setting up k8s in the two nodes (Master node and cloud node) and insstaling CRI (containerd) inside the edge node, setting up kubeedge is the next step
 ################################################################################################################################
 
+################################################################
+# Do this to exclude main cni to function on the edge node
+kubectl label node pigateway edge.kubeedge.io/exclude-cni=true
+
+# then add under spec.template.spec:
+kubectl edit daemonset kube-flannel-ds -n kube-flannel
+
+# Add this:
+- key: edge.kubeedge.io/exclude-cni
+  operator: NotIn
+  values:
+  - "true"
+#########################################################
+
 ############################################################################################################################
 # On the Edge node:  Install keadm (KubeEdge Installer) on the Edge Node
 # version vv1.17.0
