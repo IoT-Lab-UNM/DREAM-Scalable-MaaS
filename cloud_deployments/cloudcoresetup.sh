@@ -25,4 +25,4 @@ sleep 10
 kubectl get pods -n kubeedge -o wide || true
 
 echo "=== Getting token for the Pi join step ==="
-sudo keadm gettoken
+sudo keadm gettoken --kube-config=/etc/kubernetes/admin.conf

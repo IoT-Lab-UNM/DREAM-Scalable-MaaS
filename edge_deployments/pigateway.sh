@@ -3,7 +3,7 @@ set -euo pipefail
 
 KUBEEDGE_VERSION="v1.23.0"
 CLOUDNODE_IP="10.12.10.124"
-TOKEN="REPLACE_WITH_TOKEN_FROM_MASTER"
+TOKEN="e84aa4f079426b66718898f74c0490c6422d0e1099b68e331893f9f78dc34238.eyJhbGciOiJIUzI1NLIsInR5cCI6IkpXVCJ9.eyJleHAiOjE3NzUwNjg2NjR9.K4cgBXOvkcRgn71eq1Pb6wbTzu3moONswu3t9Z632Vc"
 
 echo "=== Installing keadm on pigateway ==="
 wget -q https://github.com/kubeedge/kubeedge/releases/download/${KUBEEDGE_VERSION}/keadm-${KUBEEDGE_VERSION}-linux-arm64.tar.gz
