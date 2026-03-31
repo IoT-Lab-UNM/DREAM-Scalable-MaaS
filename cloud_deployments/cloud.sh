@@ -118,7 +118,14 @@ sudo ls -l /usr/local/bin/cloudcore
 
 ################################################################
 # Do this to exclude main cni to function on the edge node
-kubectl label node pigateway edge.kubeedge.io/exclude-cni=true
+kubectl label node pigateway edge.kubeedge.io/exclude-cni=true --overwrite
+# this opens a vim editor
+                # Then: Basic vim keys you need
+                        # Press i to enter insert mode
+                        # Make your changes
+                        # Press Esc to leave insert mode
+                        # Type :wq and press Enter to save and quit
+                        # Type :q! and press Enter to quit without saving
 
 # then add under spec.template.spec:
 kubectl edit daemonset kube-flannel-ds -n kube-flannel
@@ -128,4 +135,25 @@ kubectl edit daemonset kube-flannel-ds -n kube-flannel
   operator: NotIn
   values:
   - "true"
+
+### Or instead of editing the daemonset, you can also use kubectl patch:
+kubectl patch daemonset kube-flannel-ds -n kube-flannel --type='merge' -p '
+spec:
+  template:
+    spec:
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+            - matchExpressions:
+              - key: edge.kubeedge.io/exclude-cni
+                operator: NotIn
+                values:
+                - "true"
+'
+# Then restart the DaemonSet pods so the new scheduling rule takes effect:
+kubectl rollout restart daemonset kube-flannel-ds -n kube-flannel
+# then verify:
+kubectl get pods -n kube-flannel -o wide
 #########################################################
+
