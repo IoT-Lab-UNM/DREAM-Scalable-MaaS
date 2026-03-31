@@ -19,7 +19,7 @@ grep "SystemdCgroup" /etc/containerd/config.toml || true
 sudo systemctl status containerd --no-pager || true
 
 echo "=== Cleaning previous KubeEdge edge state if present ==="
-sudo keadm reset || true
+sudo keadm reset edge || true
 sudo systemctl stop edgecore 2>/dev/null || true
 sudo rm -rf /etc/kubeedge /var/lib/kubeedge /etc/systemd/system/edgecore.service.d 2>/dev/null || true
 sudo systemctl daemon-reload
