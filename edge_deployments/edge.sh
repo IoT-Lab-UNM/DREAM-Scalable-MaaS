@@ -51,3 +51,7 @@ sudo keadm join \
   --remote-runtime-endpoint=unix:///run/containerd/containerd.sock \
   --cgroupdriver=systemd \
   --kubeedge-version=1.22.1
+
+
+# Add node label to the edge node:
+kubectl label node edgenode node-role.kubernetes.io/dataplane=""

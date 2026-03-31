@@ -157,3 +157,6 @@ kubectl rollout restart daemonset kube-flannel-ds -n kube-flannel
 kubectl get pods -n kube-flannel -o wide
 #########################################################
 
+# Add node label to the cloudnode
+kubectl label node cloudnode node-role.kubernetes.io/cloud=""
+
