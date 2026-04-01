@@ -44,13 +44,13 @@ Follow the README in this directory:
 <!-- ![DIAM Network Architecture for Multi-Site MaaS webm](figs/DREAM_MaaS_Busines_Model.gif) -->
 
 ---
-<img src="figs/Local_MaaS.jpeg" width="600" alt="Local cloud-edge testbed">
+<img src="figs/local_cloudedge.jpeg" width="600" alt="Local cloud-edge testbed">
 <!-- ![local cloud-edge network](figs/local_cloudedge.jpeg) -->
 
 ---
-<img src="figs/MaaS.png" width="600" alt="Participating nodes from k8s masternode">
+<img src="figs/cluster.png" width="600" alt="Participating nodes from k8s masternode">
 <!-- ![Cluster with participating nodes](figs/cluster.png) -->
 
 ---
-<img src="figs/MaaS.png" width="600" alt="Distributed pod sceheduling in the cluster">
+<img src="figs/pods.png" width="600" alt="Distributed pod sceheduling in the cluster">
 <!-- ![Scheduled pod in the cluster](figs/pods.png) -->
