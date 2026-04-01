@@ -40,9 +40,9 @@ You should see outputs like this:
 ```
 NAME         STATUS   ROLES           AGE   VERSION
 masternode   Ready    control-plane   ...   v1.33
-cloudnode    Ready    worker-node     ...   v1.33
-edgenode     Ready    agent,edge      ...   v1.30.7-kubeedge-v1.20.0
-edgegateway  Ready    edgecore        ...   v1.30.7-kubeedge-v1.20.0
+cloudnode    Ready    cloud           ...   v1.33
+edgenode     Ready    dataplane       ...   v1.30.7-kubeedge-v1.20.0
+pigateway  Ready      agent, edge     ...   v1.30.7-kubeedge-v1.20.0
 ```
 
 ---
