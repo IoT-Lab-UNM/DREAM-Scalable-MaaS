@@ -37,6 +37,7 @@ Follow the README in this directory:
 
 ```bash
 /kubernetes-deployment/README.md
+```
 
 ---
 <img src="figs/DREAM_MaaS_Busines_Model.gif" width="600" alt="DIAM Network Architecture for Multi-Site MaaS (GIF)">
