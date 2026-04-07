@@ -3,7 +3,7 @@ set -euo pipefail
 
 KUBEEDGE_VERSION="v1.23.0"
 CLOUDNODE_IP="10.12.10.124"
-TOKEN="e84aa4f079426b66718898f74c0490c6422d0e1099b68e331893f9f78dc34238.eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE3NzU2Njg4NzF9.yefhlKmrjD40c0oLeTiPtCTFCe82hdr_Mpf4ls80"
+TOKEN="e84aa4f079426b66718898f74c0490c6422d0e1099b68e331893f9f78dc34238.eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE3NzU2Njg4NzF9.yelfhlKmrjD4O8c0oLeTiPtPCTFCe82hdr_Mpf4ls80"
 
 echo "=== Preparing containerd on pigateway ==="
 sudo mkdir -p /etc/containerd
