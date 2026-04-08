@@ -1,0 +1,35 @@
+apiVersion: devices.kubeedge.io/v1beta1
+kind: Device
+metadata:
+  name: dht22-sensor1
+  namespace: default
+spec:
+  deviceModelRef:
+    name: dht22-model
+  nodeName: pigateway
+  properties:
+    - name: temperature
+      collectCycle: 3000000000
+      reportCycle: 3000000000
+    - name: humidity
+      collectCycle: 3000000000
+      reportCycle: 3000000000
+---
+apiVersion: devices.kubeedge.io/v1beta1
+kind: Device
+metadata:
+  name: dht22-sensor2
+  namespace: default
+spec:
+  deviceModelRef:
+    name: dht22-model
+  nodeName: pigateway
+  properties:
+    - name: temperature
+      collectCycle: 3000000000
+      reportCycle: 3000000000
+    - name: humidity
+      collectCycle: 3000000000
+      reportCycle: 3000000000
+
+# kubectl apply -f dht22-devices.yaml
