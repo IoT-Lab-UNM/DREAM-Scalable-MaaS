@@ -8,12 +8,24 @@ spec:
     name: dht22-model
   nodeName: pigateway
   properties:
-    - name: temperature
-      collectCycle: 3000000000
-      reportCycle: 3000000000
-    - name: humidity
-      collectCycle: 3000000000
-      reportCycle: 3000000000
+  - name: temperature
+    collectCycle: 3000000000
+    reportCycle: 3000000000
+    visitors:
+      protocolName: custom
+      configData:
+        dataType: string
+        pin: GPIO4
+        metric: temperature
+  - name: humidity
+    collectCycle: 3000000000
+    reportCycle: 3000000000
+    visitors:
+      protocolName: custom
+      configData:
+        dataType: string
+        pin: GPIO4
+        metric: humidity
 ---
 apiVersion: devices.kubeedge.io/v1beta1
 kind: Device
@@ -25,11 +37,23 @@ spec:
     name: dht22-model
   nodeName: pigateway
   properties:
-    - name: temperature
-      collectCycle: 3000000000
-      reportCycle: 3000000000
-    - name: humidity
-      collectCycle: 3000000000
-      reportCycle: 3000000000
+  - name: temperature
+    collectCycle: 3000000000
+    reportCycle: 3000000000
+    visitors:
+      protocolName: custom
+      configData:
+        dataType: string
+        pin: GPIO17
+        metric: temperature
+  - name: humidity
+    collectCycle: 3000000000
+    reportCycle: 3000000000
+    visitors:
+      protocolName: custom
+      configData:
+        dataType: string
+        pin: GPIO17
+        metric: humidity
 
 # kubectl apply -f dht22-devices.yaml
