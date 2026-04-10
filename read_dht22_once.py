@@ -37,7 +37,6 @@ def main():
 
     last_err = None
 
-    # Retry several times because DHT22 reads can be flaky
     for _ in range(5):
         try:
             result = read_sensor_once(pin_name)
