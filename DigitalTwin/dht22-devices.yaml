@@ -8,8 +8,8 @@ spec:
     name: dht22-model
   nodeName: pigateway
   protocol:
-    customized:
-      protocolName: customized
+    protocolName: customized
+    configData: {}
   properties:
     - name: temperature
       collectCycle: 3000000000
@@ -40,8 +40,8 @@ spec:
     name: dht22-model
   nodeName: pigateway
   protocol:
-    customized:
-      protocolName: customized
+    protocolName: customized
+    configData: {}
   properties:
     - name: temperature
       collectCycle: 3000000000

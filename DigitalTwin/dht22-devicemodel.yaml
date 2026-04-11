@@ -4,6 +4,7 @@ metadata:
   name: dht22-model
   namespace: default
 spec:
+  protocol: customized
   properties:
     - name: temperature
       description: DHT22 temperature
