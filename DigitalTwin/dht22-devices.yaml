@@ -7,25 +7,28 @@ spec:
   deviceModelRef:
     name: dht22-model
   nodeName: pigateway
+  protocol:
+    customized:
+      protocolName: customized
   properties:
-  - name: temperature
-    collectCycle: 3000000000
-    reportCycle: 3000000000
-    visitors:
-      protocolName: custom
-      configData:
-        dataType: string
-        pin: GPIO4
-        metric: temperature
-  - name: humidity
-    collectCycle: 3000000000
-    reportCycle: 3000000000
-    visitors:
-      protocolName: custom
-      configData:
-        dataType: string
-        pin: GPIO4
-        metric: humidity
+    - name: temperature
+      collectCycle: 3000000000
+      reportCycle: 3000000000
+      visitors:
+        protocolName: customized
+        configData:
+          dataType: string
+          metric: temperature
+          pin: GPIO4
+    - name: humidity
+      collectCycle: 3000000000
+      reportCycle: 3000000000
+      visitors:
+        protocolName: customized
+        configData:
+          dataType: string
+          metric: humidity
+          pin: GPIO4
 ---
 apiVersion: devices.kubeedge.io/v1beta1
 kind: Device
@@ -36,24 +39,31 @@ spec:
   deviceModelRef:
     name: dht22-model
   nodeName: pigateway
+  protocol:
+    customized:
+      protocolName: customized
   properties:
-  - name: temperature
-    collectCycle: 3000000000
-    reportCycle: 3000000000
-    visitors:
-      protocolName: custom
-      configData:
-        dataType: string
-        pin: GPIO17
-        metric: temperature
-  - name: humidity
-    collectCycle: 3000000000
-    reportCycle: 3000000000
-    visitors:
-      protocolName: custom
-      configData:
-        dataType: string
-        pin: GPIO17
-        metric: humidity
+    - name: temperature
+      collectCycle: 3000000000
+      reportCycle: 3000000000
+      visitors:
+        protocolName: customized
+        configData:
+          dataType: string
+          metric: temperature
+          pin: GPIO17
+    - name: humidity
+      collectCycle: 3000000000
+      reportCycle: 3000000000
+      visitors:
+        protocolName: customized
+        configData:
+          dataType: string
+          metric: humidity
+          pin: GPIO17
 
+# kubectl delete device dht22-sensor1 -n default
+# kubectl delete device dht22-sensor2 -n default
 # kubectl apply -f dht22-devices.yaml
+# kubectl get device dht22-sensor1 -n default -o yaml
+# kubectl get device dht22-sensor2 -n default -o yaml
