@@ -12,8 +12,8 @@ spec:
     configData: {}
   properties:
     - name: temperature
-      collectCycle: 3000000000
-      reportCycle: 3000000000
+      collectCycle: 3000
+      reportCycle: 3000
       reportToCloud: true
       visitors:
         protocolName: customized
@@ -22,8 +22,8 @@ spec:
           metric: temperature
           pin: GPIO4
     - name: humidity
-      collectCycle: 3000000000
-      reportCycle: 3000000000
+      collectCycle: 3000
+      reportCycle: 3000
       reportToCloud: true
       visitors:
         protocolName: customized
@@ -46,8 +46,8 @@ spec:
     configData: {}
   properties:
     - name: temperature
-      collectCycle: 3000000000
-      reportCycle: 3000000000
+      collectCycle: 3000
+      reportCycle: 3000
       reportToCloud: true
       visitors:
         protocolName: customized
@@ -56,8 +56,8 @@ spec:
           metric: temperature
           pin: GPIO17
     - name: humidity
-      collectCycle: 3000000000
-      reportCycle: 3000000000
+      collectCycle: 3000
+      reportCycle: 3000
       reportToCloud: true
       visitors:
         protocolName: customized
