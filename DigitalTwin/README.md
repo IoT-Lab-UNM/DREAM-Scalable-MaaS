@@ -720,11 +720,3 @@ Once these were resolved, the mapper successfully updated both:
 * local EdgeCore `device_twin` SQLite table
 
 ---
-
-## 11. Suggested Cleanup After Success
-
-After confirming the system works:
-
-* keep a copy of the final working files
-* remove noisy temporary debug logs if desired
-* commit the working version to GitHub
