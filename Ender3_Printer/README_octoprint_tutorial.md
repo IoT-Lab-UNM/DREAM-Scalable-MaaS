@@ -2,8 +2,6 @@
 
 This README explains how to run OctoPrint in a Docker container on a Raspberry Pi, connect it to a 3D printer, create an OctoPrint API key, and control print jobs using Python through the `octorest` library.
 
-> **Security note:** Do not commit Raspberry Pi login credentials, OctoPrint usernames/passwords, or API keys to a public GitHub repository. Store secrets in a private password manager or in a local `.env` file that is excluded from Git.
-
 ---
 
 ## Table of Contents

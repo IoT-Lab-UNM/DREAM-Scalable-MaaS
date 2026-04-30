@@ -1,6 +1,4 @@
-Credentials for raspberri pi (ubuntu) and octoprint
-u: secnet
-pw: 3dprinter
+
 
 NOTE: the pi is currently setup to kill ALL DOCKER CONTAINERS on restart and initialize a fresh octoprint container. The relevant script is in ~/scripts/start_octoprint.sh and the startup service is in /etc/systemd/system/octoprint-autostart.services
 
