@@ -23,10 +23,10 @@ The Raspberri pi has the command "dockerprint" aliased to this, but this has bee
 	name:testing
 	key:GU19lQsUwEnXSTGxoOSAKjfw925uTQDUncjYfkKKDxU
 
-3) Create conda environment with required packages:
+3) Create conda/pip3 environment with required packages:
 	-python 3.10 
 	-octorest (octoprint api)
-	-requests (not sure why? chatgpt suggested it)
+    - pip3 install octorest
 
 4) Initiate Raspberri pi - printer connection
 	The current settings will initialize the connection automatically
