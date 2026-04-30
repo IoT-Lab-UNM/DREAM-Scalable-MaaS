@@ -1,0 +1,71 @@
+Credentials for raspberri pi (ubuntu) and octoprint
+u: secnet
+pw: 3dprinter
+
+NOTE: the pi is currently setup to kill ALL DOCKER CONTAINERS on restart and initialize a fresh octoprint container. The relevant script is in ~/scripts/start_octoprint.sh and the startup service is in /etc/systemd/system/octoprint-autostart.services
+
+1) Start docker container (headless) using this command:
+
+docker run -d \
+  --name octoprint \
+  -p 5000:5000 \
+  --device=/dev/ttyUSB0 \
+  -v octoprint:/octoprint \
+  octoprint/octoprint
+
+The Raspberri pi has the command "dockerprint" aliased to this, but this has been done manuallydocer p
+
+2) Create API key in octoprint
+	Settings > Application keys
+
+	Currently the following key exists
+	u:secnet
+	name:testing
+	key:GU19lQsUwEnXSTGxoOSAKjfw925uTQDUncjYfkKKDxU
+
+3) Create conda environment with required packages:
+	-python 3.10 
+	-octorest (octoprint api)
+	-requests (not sure why? chatgpt suggested it)
+
+4) Initiate Raspberri pi - printer connection
+	The current settings will initialize the connection automatically
+
+5) Initiate printer instance
+
+from octorest import OctoRest
+
+client = OctoRest(
+    url="http://10.88.202.187:5000",
+    apikey = "GU19lQsUwEnXSTGxoOSAKjfw925uTQDUncjYfkKKDxU"
+)
+
+print(client.version)
+print(client.printer)
+
+5) upload gcode and initiate print
+client.upload("test.gcode")
+client.select("test.gcode",print=True)
+print("Task started")
+
+For reference to the octorest API, see the link https://pypi.org/project/octorest/
+or ask chatgpt
+
+TODO:
+- Automatically kill previous docker containers and start a new octoprint container on rb-pi startup
+
+Test command:
+from octorest import OctoRest
+import time
+
+client = OctoRest(
+    url="http://10.88.202.187:5000",
+    apikey = "GU19lQsUwEnXSTGxoOSAKjfw925uTQDUncjYfkKKDxU"
+)
+
+print(client.version)
+print(client.printer)
+
+client.upload("f4u2.gcode")
+client.select("f4u2.gcode",print=True)
+print("Task started")
