@@ -2,7 +2,7 @@
 ```bash
 sudo ovs-vsctl show
 ```
-Ensure `Controller "tcp://192.168.56.103:6653"` is shown for `br0`.
+Ensure `Controller "tcp://10.12.10.124:6653"` is shown for `br0`.
 
 ---
 
