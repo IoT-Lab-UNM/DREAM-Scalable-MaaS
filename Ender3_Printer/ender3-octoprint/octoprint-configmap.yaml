@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: octoprint-client-config
+  namespace: microservices
+data:
+  OCTOPRINT_URL: "http://10.88.188.190:5000"
+  GCODE_PATH: "/app/gcode/f4u2.gcode"
+  SELECT_AFTER_UPLOAD: "true"
+  START_PRINT: "false"
+  WAIT_AFTER_UPLOAD_SECONDS: "2"

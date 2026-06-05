@@ -3,7 +3,7 @@ import os
 import time
 
 client = OctoRest(
-    url="http://10.88.202.187:5000",
+    url="http://10.88.188.190:5000",
     apikey="GU19lQsUwEnXSTGxoOSAKjfw925uTQDUncjYfkKKDxU"
 )
 

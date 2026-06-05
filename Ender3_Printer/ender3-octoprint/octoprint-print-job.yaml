@@ -1,0 +1,36 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: ender3-octoprint-print-job
+  namespace: microservices
+spec:
+  backoffLimit: 0
+  ttlSecondsAfterFinished: 3600
+  template:
+    metadata:
+      labels:
+        app: ender3-octoprint-client
+    spec:
+      nodeSelector:
+        kubernetes.io/hostname: cloudnode
+      restartPolicy: Never
+      containers:
+      - name: ender3-octoprint-client
+        image: henok28/ender3-octoprint-client:v1.0
+        imagePullPolicy: IfNotPresent
+        envFrom:
+        - configMapRef:
+            name: octoprint-client-config
+        env:
+        - name: OCTOPRINT_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: octoprint-credentials
+              key: OCTOPRINT_API_KEY
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+          limits:
+            cpu: 500m
+            memory: 256Mi
