@@ -1,0 +1,15 @@
+[Unit]
+Description=Start OctoPrint container for the 3D printer
+Requires=docker.service
+After=docker.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=secnet
+WorkingDirectory=/home/secnet
+ExecStart=/home/secnet/scripts/start_octoprint.sh
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target
