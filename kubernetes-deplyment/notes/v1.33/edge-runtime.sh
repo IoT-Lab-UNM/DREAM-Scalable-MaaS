@@ -1,10 +1,11 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
-# Prepare an Ubuntu 22.04 Raspberry Pi for KubeEdge EdgeCore with containerd CRI.
-# This script intentionally preserves Docker and the existing OctoPrint container.
-# It does NOT install a CNI on the edge node; later edge workloads are expected
-# to use hostNetwork: true in this isolated-edge design.
+# Prepare an ARM64 Raspberry Pi running Ubuntu/Debian
+# for KubeEdge EdgeCore with containerd CRI.
+#
+# This script preserves Docker if already installed.
+# It does NOT install a CNI on the edge node.
 
 log()  { printf '\n[%s] %s\n' "$(date '+%F %T')" "$*"; }
 warn() { printf '\nWARNING: %s\n' "$*" >&2; }
@@ -48,9 +49,18 @@ esac
 
 if [[ -r /etc/os-release ]]; then
   . /etc/os-release
-  if [[ "${ID:-}" != "ubuntu" || "${VERSION_ID:-}" != "22.04" ]]; then
-    warn "Expected Ubuntu 22.04; detected ${PRETTY_NAME:-unknown}. Continuing cautiously."
-  fi
+
+  case "${ID:-}" in
+    ubuntu)
+      log "Ubuntu detected: ${PRETTY_NAME:-unknown}"
+      ;;
+    debian)
+      log "Debian detected: ${PRETTY_NAME:-unknown}"
+      ;;
+    *)
+      warn "This script was designed for Ubuntu/Debian; detected ${PRETTY_NAME:-unknown}."
+      ;;
+  esac
 fi
 
 log "[2/9] Preserving Docker/OctoPrint and checking current services..."
@@ -99,16 +109,38 @@ sysctl net.ipv4.ip_forward
 
 log "[6/9] Ensuring containerd is installed..."
 if ! command -v containerd >/dev/null 2>&1; then
-  warn "containerd is not installed. Determining the safest package family..."
+  warn "containerd is not installed. Determining the safest package source..."
 
-  if dpkg-query -W -f='${Status}' docker-ce 2>/dev/null | grep -q 'install ok installed'; then
+  if dpkg-query -W -f='${Status}' docker-ce 2>/dev/null | \
+      grep -q 'install ok installed'; then
+
+    log "Docker CE detected; installing containerd.io."
     sudo apt-get update
     sudo apt-get install -y containerd.io
-  elif dpkg-query -W -f='${Status}' docker.io 2>/dev/null | grep -q 'install ok installed'; then
+
+  elif dpkg-query -W -f='${Status}' docker.io 2>/dev/null | \
+      grep -q 'install ok installed'; then
+
+    log "docker.io detected; installing distribution containerd."
     sudo apt-get update
     sudo apt-get install -y containerd
+
+  elif [[ "${ID:-}" == "debian" ]]; then
+
+    log "Debian detected with no existing Docker/containerd."
+    log "Installing Debian containerd package."
+    sudo apt-get update
+    sudo apt-get install -y containerd
+
+  elif [[ "${ID:-}" == "ubuntu" ]]; then
+
+    log "Ubuntu detected with no existing Docker/containerd."
+    log "Installing Ubuntu containerd package."
+    sudo apt-get update
+    sudo apt-get install -y containerd
+
   else
-    die "containerd is absent and the Docker package family could not be identified. Install a compatible containerd first."
+    die "containerd is absent and no supported installation path was detected."
   fi
 fi
 
@@ -181,6 +213,12 @@ swapon --show --noheadings | wc -l
 
 echo
 echo "Runtime completed successfully."
-echo "Docker/OctoPrint were preserved."
+
+if command -v docker >/dev/null 2>&1; then
+  echo "Docker/OctoPrint were preserved."
+else
+  echo "No Docker installation was present; containerd was prepared for KubeEdge."
+fi
+
 echo "No edge CNI was installed (intentional for the hostNetwork-only edge design)."
 echo "Next: run edgecore-join.sh"
