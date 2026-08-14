@@ -49,18 +49,9 @@ esac
 
 if [[ -r /etc/os-release ]]; then
   . /etc/os-release
-
-  case "${ID:-}" in
-    ubuntu)
-      log "Ubuntu detected: ${PRETTY_NAME:-unknown}"
-      ;;
-    debian)
-      log "Debian detected: ${PRETTY_NAME:-unknown}"
-      ;;
-    *)
-      warn "This script was designed for Ubuntu/Debian; detected ${PRETTY_NAME:-unknown}."
-      ;;
-  esac
+  if [[ "${ID:-}" != "ubuntu" || "${VERSION_ID:-}" != "22.04" ]]; then
+    warn "Expected Ubuntu 22.04; detected ${PRETTY_NAME:-unknown}. Continuing cautiously."
+  fi
 fi
 
 log "[2/9] Preserving Docker/OctoPrint and checking current services..."
@@ -109,38 +100,25 @@ sysctl net.ipv4.ip_forward
 
 log "[6/9] Ensuring containerd is installed..."
 if ! command -v containerd >/dev/null 2>&1; then
-  warn "containerd is not installed. Determining the safest package source..."
+  warn "containerd is not installed. Detecting the host package environment and installing it automatically..."
 
-  if dpkg-query -W -f='${Status}' docker-ce 2>/dev/null | \
-      grep -q 'install ok installed'; then
+  sudo apt-get update
 
-    log "Docker CE detected; installing containerd.io."
-    sudo apt-get update
+  if dpkg-query -W -f='${Status}' docker-ce 2>/dev/null | grep -q 'install ok installed'; then
+    log "Docker CE detected; installing matching containerd.io package family."
     sudo apt-get install -y containerd.io
 
-  elif dpkg-query -W -f='${Status}' docker.io 2>/dev/null | \
-      grep -q 'install ok installed'; then
-
-    log "docker.io detected; installing distribution containerd."
-    sudo apt-get update
+  elif dpkg-query -W -f='${Status}' docker.io 2>/dev/null | grep -q 'install ok installed'; then
+    log "Ubuntu docker.io detected; installing Ubuntu containerd package."
     sudo apt-get install -y containerd
 
-  elif [[ "${ID:-}" == "debian" ]]; then
-
-    log "Debian detected with no existing Docker/containerd."
-    log "Installing Debian containerd package."
-    sudo apt-get update
-    sudo apt-get install -y containerd
-
-  elif [[ "${ID:-}" == "ubuntu" ]]; then
-
-    log "Ubuntu detected with no existing Docker/containerd."
-    log "Installing Ubuntu containerd package."
-    sudo apt-get update
+  elif [[ "${ID:-}" == "ubuntu" && "${VERSION_ID:-}" == "22.04" ]]; then
+    log "Fresh Ubuntu 22.04 node detected with no Docker/containerd."
+    log "Installing containerd from the same Ubuntu repository configured on the node."
     sudo apt-get install -y containerd
 
   else
-    die "containerd is absent and no supported installation path was detected."
+    die "containerd is absent and this OS/package environment is not supported automatically by this script."
   fi
 fi
 
@@ -213,12 +191,10 @@ swapon --show --noheadings | wc -l
 
 echo
 echo "Runtime completed successfully."
-
 if command -v docker >/dev/null 2>&1; then
   echo "Docker/OctoPrint were preserved."
 else
-  echo "No Docker installation was present; containerd was prepared for KubeEdge."
+  echo "No Docker installation was present; containerd was prepared directly for KubeEdge."
 fi
-
 echo "No edge CNI was installed (intentional for the hostNetwork-only edge design)."
 echo "Next: run edgecore-join.sh"

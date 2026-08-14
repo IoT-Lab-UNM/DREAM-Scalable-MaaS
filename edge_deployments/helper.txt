@@ -3,3 +3,23 @@ kubectl label node 3dprinter device-type=creality-ender3
 
 kubectl label node robotarm gateway-role=robot
 kubectl label node robotarm device-type=freenove-arm
+
+kubectl get nodes --show-labels
+
+# Do this to exclude main cni to function on the edge node
+kubectl label node robotarm edge.kubeedge.io/exclude-cni=true
+
+# then add under spec.template.spec:
+kubectl edit daemonset kube-flannel-ds -n kube-flannel
+
+# Under 
+spec:
+  template:
+    spec:
+
+# Add this:
+
+- key: edge.kubeedge.io/exclude-cni
+  operator: NotIn
+  values:
+  - "true"
