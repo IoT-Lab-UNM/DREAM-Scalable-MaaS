@@ -1,0 +1,44 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: robot-adapter
+  namespace: kubeedge
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: robot-adapter
+  template:
+    metadata:
+      labels:
+        app: robot-adapter
+    spec:
+      hostNetwork: true
+      nodeSelector:
+        gateway-role: robot
+      containers:
+      - name: adapter
+        image: docker.io/henok28/dream-robot-adapter:0.1.0
+        imagePullPolicy: IfNotPresent
+        env:
+        - name: ROBOT_HOST
+          valueFrom:
+            fieldRef:
+              fieldPath: status.hostIP
+        - {name: ROBOT_PORT, value: "5000"}
+        - {name: MQTT_HOST, value: "127.0.0.1"}
+        - {name: MQTT_PORT, value: "1883"}
+        - {name: SITE_ID, value: "unm-lab"}
+        - {name: DEVICE_ID, value: "freenove-arm-01"}
+        - {name: ALLOW_S13, value: "false"}
+        volumeMounts:
+        - {name: data, mountPath: /data}
+        securityContext:
+          allowPrivilegeEscalation: false
+          runAsNonRoot: true
+          capabilities: {drop: ["ALL"]}
+      volumes:
+      - name: data
+        hostPath:
+          path: /var/lib/dream/robot-adapter
+          type: Directory
