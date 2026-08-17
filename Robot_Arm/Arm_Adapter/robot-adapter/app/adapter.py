@@ -84,9 +84,9 @@ class Adapter:
                 return
             self.ack(command_id, job_id, "received")
             wire = self.translate(action, params)
-            self.ack(command_id, job_id, "validated", "freenove_command", wire)
+            self.ack(command_id, job_id, "validated", freenove_command=wire,)
             self.robot.send(wire)
-            self.ack(command_id, job_id, "sent", "completion_semantics", "server_queue_only")
+            self.ack(command_id, job_id, "sent", completion_semantics="server_queue_only",)
         except Exception as exc:
             cid = locals().get("command_id", "unknown")
             jid = locals().get("job_id", "")
