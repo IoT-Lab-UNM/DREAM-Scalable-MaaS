@@ -1,0 +1,103 @@
+apiVersion: devices.kubeedge.io/v1beta1
+kind: DeviceModel
+metadata:
+  name: freenove-arm-model
+  namespace: default
+spec:
+  protocol: customized
+  properties:
+    - name: availability
+      description: Robot availability
+      type: STRING
+      accessMode: ReadOnly
+
+    - name: operatingState
+      description: Current robot operating state
+      type: STRING
+      accessMode: ReadOnly
+
+    - name: currentTask
+      description: Current MaaS task identifier
+      type: STRING
+      accessMode: ReadOnly
+
+    - name: commandAck
+      description: Acknowledgment of the latest requested action
+      type: STRING
+      accessMode: ReadOnly
+
+    - name: fault
+      description: Current robot fault or alarm
+      type: STRING
+      accessMode: ReadOnly
+
+    - name: requestedAction
+      description: Compact desired action from the unified Job Manager
+      type: STRING
+      accessMode: ReadWrite
+
+    - name: lastUpdate
+      description: Timestamp of the latest reported state
+      type: STRING
+      accessMode: ReadOnly
+---
+apiVersion: devices.kubeedge.io/v1beta1
+kind: DeviceModel
+metadata:
+  name: ender3-printer-model
+  namespace: default
+spec:
+  protocol: customized
+  properties:
+    - name: availability
+      description: Printer availability
+      type: STRING
+      accessMode: ReadOnly
+
+    - name: printerState
+      description: Current OctoPrint printer state
+      type: STRING
+      accessMode: ReadOnly
+
+    - name: activeJob
+      description: Current MaaS or OctoPrint job identifier
+      type: STRING
+      accessMode: ReadOnly
+
+    - name: progress
+      description: Current print completion percentage
+      type: STRING
+      accessMode: ReadOnly
+      unit: Percent
+
+    - name: nozzleTemperature
+      description: Current nozzle temperature
+      type: STRING
+      accessMode: ReadOnly
+      unit: Celsius
+
+    - name: bedTemperature
+      description: Current print-bed temperature
+      type: STRING
+      accessMode: ReadOnly
+      unit: Celsius
+
+    - name: commandAck
+      description: Acknowledgment of the latest requested action
+      type: STRING
+      accessMode: ReadOnly
+
+    - name: fault
+      description: Current printer fault or error
+      type: STRING
+      accessMode: ReadOnly
+
+    - name: requestedAction
+      description: Compact desired action from the unified Job Manager
+      type: STRING
+      accessMode: ReadWrite
+
+    - name: lastUpdate
+      description: Timestamp of the latest reported state
+      type: STRING
+      accessMode: ReadOnly
