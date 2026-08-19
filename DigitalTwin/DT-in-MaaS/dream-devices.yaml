@@ -1,0 +1,236 @@
+apiVersion: devices.kubeedge.io/v1beta1
+kind: Device
+metadata:
+  name: freenove-arm-01
+  namespace: default
+  labels:
+    dream.unm/site: unm-lab
+    dream.unm/device-type: freenove-arm
+spec:
+  deviceModelRef:
+    name: freenove-arm-model
+  nodeName: robotarm
+
+  protocol:
+    protocolName: customized
+    configData:
+      adapter: robot-mqtt
+
+  stateReport:
+    reportCycle: 3000
+    reportToCloud: true
+
+  properties:
+    - name: availability
+      collectCycle: 3000
+      reportCycle: 3000
+      reportToCloud: true
+      visitors:
+        protocolName: customized
+        configData:
+          dataType: string
+          source: robot-mqtt
+          field: availability
+
+    - name: operatingState
+      collectCycle: 3000
+      reportCycle: 3000
+      reportToCloud: true
+      visitors:
+        protocolName: customized
+        configData:
+          dataType: string
+          source: robot-mqtt
+          field: operatingState
+
+    - name: currentTask
+      collectCycle: 3000
+      reportCycle: 3000
+      reportToCloud: true
+      visitors:
+        protocolName: customized
+        configData:
+          dataType: string
+          source: robot-mqtt
+          field: currentTask
+
+    - name: commandAck
+      collectCycle: 3000
+      reportCycle: 3000
+      reportToCloud: true
+      visitors:
+        protocolName: customized
+        configData:
+          dataType: string
+          source: robot-mqtt
+          field: commandAck
+
+    - name: fault
+      collectCycle: 3000
+      reportCycle: 3000
+      reportToCloud: true
+      visitors:
+        protocolName: customized
+        configData:
+          dataType: string
+          source: robot-mqtt
+          field: fault
+
+    - name: requestedAction
+      desired:
+        value: NONE
+      collectCycle: 3000
+      reportCycle: 3000
+      reportToCloud: true
+      visitors:
+        protocolName: customized
+        configData:
+          dataType: string
+          source: robot-mqtt
+          field: requestedAction
+
+    - name: lastUpdate
+      collectCycle: 3000
+      reportCycle: 3000
+      reportToCloud: true
+      visitors:
+        protocolName: customized
+        configData:
+          dataType: string
+          source: robot-mqtt
+          field: lastUpdate
+---
+apiVersion: devices.kubeedge.io/v1beta1
+kind: Device
+metadata:
+  name: ender3-printer-01
+  namespace: default
+  labels:
+    dream.unm/site: unm-lab
+    dream.unm/device-type: creality-ender3
+spec:
+  deviceModelRef:
+    name: ender3-printer-model
+  nodeName: 3dprinter
+
+  protocol:
+    protocolName: customized
+    configData:
+      adapter: octoprint-rest
+
+  stateReport:
+    reportCycle: 3000
+    reportToCloud: true
+
+  properties:
+    - name: availability
+      collectCycle: 3000
+      reportCycle: 3000
+      reportToCloud: true
+      visitors:
+        protocolName: customized
+        configData:
+          dataType: string
+          source: octoprint-rest
+          field: availability
+
+    - name: printerState
+      collectCycle: 3000
+      reportCycle: 3000
+      reportToCloud: true
+      visitors:
+        protocolName: customized
+        configData:
+          dataType: string
+          source: octoprint-rest
+          field: printerState
+
+    - name: activeJob
+      collectCycle: 3000
+      reportCycle: 3000
+      reportToCloud: true
+      visitors:
+        protocolName: customized
+        configData:
+          dataType: string
+          source: octoprint-rest
+          field: activeJob
+
+    - name: progress
+      collectCycle: 3000
+      reportCycle: 3000
+      reportToCloud: true
+      visitors:
+        protocolName: customized
+        configData:
+          dataType: string
+          source: octoprint-rest
+          field: progress
+
+    - name: nozzleTemperature
+      collectCycle: 3000
+      reportCycle: 3000
+      reportToCloud: true
+      visitors:
+        protocolName: customized
+        configData:
+          dataType: string
+          source: octoprint-rest
+          field: nozzleTemperature
+
+    - name: bedTemperature
+      collectCycle: 3000
+      reportCycle: 3000
+      reportToCloud: true
+      visitors:
+        protocolName: customized
+        configData:
+          dataType: string
+          source: octoprint-rest
+          field: bedTemperature
+
+    - name: commandAck
+      collectCycle: 3000
+      reportCycle: 3000
+      reportToCloud: true
+      visitors:
+        protocolName: customized
+        configData:
+          dataType: string
+          source: octoprint-rest
+          field: commandAck
+
+    - name: fault
+      collectCycle: 3000
+      reportCycle: 3000
+      reportToCloud: true
+      visitors:
+        protocolName: customized
+        configData:
+          dataType: string
+          source: octoprint-rest
+          field: fault
+
+    - name: requestedAction
+      desired:
+        value: NONE
+      collectCycle: 3000
+      reportCycle: 3000
+      reportToCloud: true
+      visitors:
+        protocolName: customized
+        configData:
+          dataType: string
+          source: octoprint-rest
+          field: requestedAction
+
+    - name: lastUpdate
+      collectCycle: 3000
+      reportCycle: 3000
+      reportToCloud: true
+      visitors:
+        protocolName: customized
+        configData:
+          dataType: string
+          source: octoprint-rest
+          field: lastUpdate
