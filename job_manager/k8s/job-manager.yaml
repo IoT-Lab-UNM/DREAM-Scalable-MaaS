@@ -58,7 +58,7 @@ spec:
         kubernetes.io/hostname: cloudnode
       initContainers:
       - name: initialize-data-directory
-        image: henok28/dream-job-manager:0.1.0
+        image: henok28/dream-job-manager:0.1.1
         command: ["sh", "-c", "mkdir -p /data && chown -R 10001:10001 /data"]
         securityContext:
           runAsUser: 0
@@ -67,7 +67,7 @@ spec:
           mountPath: /data
       containers:
       - name: job-manager
-        image: henok28/dream-job-manager:0.1.0
+        image: henok28/dream-job-manager:0.1.1
         imagePullPolicy: Always
         ports:
         - name: http
