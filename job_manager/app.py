@@ -4,7 +4,16 @@ import time
 
 from flask import Flask, jsonify, request
 
-from core import DEVICE_PROFILES, ack_matches, encode_command, iso_now, readiness, twins_to_map
+from core import (
+    DEVICE_PROFILES,
+    encode_command,
+    iso_now,
+    parse_ack,
+    parse_time,
+    readiness,
+    twins_to_map,
+    utcnow,
+)
 from kubeedge_client import KubeEdgeClient
 from store import JobStore
 
@@ -147,17 +156,56 @@ def reconcile():
             try:
                 status = kube.device_status(DEVICE_NAMESPACE, item["device_id"])
                 twins = twins_to_map(status)
-                if item["state"] == "DISPATCHED" and ack_matches(item["command_id"], twins.get("commandAck")):
-                    kube.set_requested_action(DEVICE_NAMESPACE, item["device_id"], "NONE")
-                    store.update_state(
-                        item["id"],
-                        "ACKNOWLEDGED",
-                        "COMMAND_ACKNOWLEDGED",
-                        {"commandAck": twins.get("commandAck")},
-                    )
+                if item["state"] == "DISPATCHED":
+                    raw_ack = twins.get("commandAck")
+                    ack = parse_ack(raw_ack)
+
+                    if ack and ack["command_id"] == item["command_id"]:
+                        if ack["status"] == "succeeded":
+                            kube.set_requested_action(
+                                DEVICE_NAMESPACE,
+                                item["device_id"],
+                                "NONE",
+                            )
+                            store.update_state(
+                                item["id"],
+                                "ACKNOWLEDGED",
+                                "COMMAND_ACKNOWLEDGED",
+                                {
+                                    "commandAck": raw_ack,
+                                    "decoded_ack": ack,
+                                },
+                            )
+
+                            # Re-read the job as ACKNOWLEDGED during the next
+                            # pass. This also prevents a valid acknowledgment
+                            # and a timeout from being recorded together.
+                            continue
+
+                        if ack["status"] == "rejected":
+                            reason = str(
+                                ack.get("reason") or "device rejected command"
+                            )
+                            kube.set_requested_action(
+                                DEVICE_NAMESPACE,
+                                item["device_id"],
+                                "NONE",
+                            )
+                            store.update_state(
+                                item["id"],
+                                "FAILED",
+                                "COMMAND_REJECTED",
+                                {
+                                    "commandAck": raw_ack,
+                                    "decoded_ack": ack,
+                                },
+                                completed_at=iso_now(),
+                                last_error=reason,
+                            )
+                            continue
+
                 dispatched = item.get("dispatched_at")
                 if item["state"] == "DISPATCHED" and dispatched:
-                    from core import parse_time, utcnow
                     if (utcnow() - parse_time(dispatched)).total_seconds() > ACK_TIMEOUT_SECONDS:
                         kube.set_requested_action(DEVICE_NAMESPACE, item["device_id"], "NONE")
                         store.update_state(

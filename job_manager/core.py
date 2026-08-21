@@ -1,3 +1,5 @@
+import base64
+import binascii
 import json
 from datetime import datetime, timezone
 
@@ -102,13 +104,45 @@ def readiness(device_id, device_status, now=None):
     }
 
 
+def parse_ack(value):
+    """Decode a mapper acknowledgment without changing mapper behavior."""
+    if value in (None, "", "NONE"):
+        return None
+
+    if isinstance(value, dict):
+        parsed = value.copy()
+    else:
+        text = str(value).strip()
+        try:
+            if text.startswith("b64url:"):
+                encoded = text.removeprefix("b64url:")
+                encoded += "=" * (-len(encoded) % 4)
+                decoded = base64.urlsafe_b64decode(encoded).decode("utf-8")
+                parsed = json.loads(decoded)
+            else:
+                parsed = json.loads(text)
+        except (
+            TypeError,
+            ValueError,
+            UnicodeDecodeError,
+            json.JSONDecodeError,
+            binascii.Error,
+        ):
+            return None
+
+    if not isinstance(parsed, dict):
+        return None
+
+    command_id = str(parsed.get("command_id", "")).strip()
+    status = str(parsed.get("status", "")).strip().lower()
+    if not command_id:
+        return None
+
+    parsed["command_id"] = command_id
+    parsed["status"] = status
+    return parsed
+
+
 def ack_matches(command_id, value):
-    if not value or value == "NONE":
-        return False
-    if command_id in value:
-        return True
-    try:
-        parsed = json.loads(value)
-    except (TypeError, ValueError, json.JSONDecodeError):
-        return False
-    return parsed.get("command_id") == command_id
+    parsed = parse_ack(value)
+    return parsed is not None and parsed["command_id"] == command_id
