@@ -1,90 +1,129 @@
 apiVersion: v1
 kind: Namespace
 metadata:
-  name: microservices
-
+  name: dream-maas
 ---
 apiVersion: v1
-kind: Secret
+kind: ConfigMap
 metadata:
-  name: onos-credentials
-  namespace: microservices
-type: Opaque
-stringData:
-  SDN_CONTROLLER_USER: "onos"
-  SDN_CONTROLLER_PASS: "rocks"
-
+  name: dream-policy-rules
+  namespace: dream-maas
+data:
+  policies.json: |
+    {
+      "version": "baseline-2026-08-21.1",
+      "default_effect": "DENY",
+      "rules": [
+        {
+          "id": "allow-printer-status-refresh-validation",
+          "enabled": true,
+          "effect": "ALLOW",
+          "match": {
+            "device_ids": ["ender3-printer-01"],
+            "device_kinds": ["printer"],
+            "actions": ["status_refresh"],
+            "sla_classes": ["validation"],
+            "require_eligible": true
+          },
+          "reason_codes": ["safe_validation_action"]
+        },
+        {
+          "id": "deny-printer-physical-actions",
+          "enabled": true,
+          "effect": "DENY",
+          "match": {
+            "device_ids": ["ender3-printer-01"],
+            "actions": ["print_file", "pause", "cancel"]
+          },
+          "reason_codes": ["physical_action_not_authorized"]
+        },
+        {
+          "id": "deny-robot-physical-actions",
+          "enabled": true,
+          "effect": "DENY",
+          "match": {
+            "device_ids": ["freenove-arm-01"],
+            "actions": ["motor_enable"]
+          },
+          "reason_codes": ["physical_action_not_authorized"]
+        }
+      ]
+    }
 ---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: policy-manager
-  namespace: microservices
+  name: dream-policy-management
+  namespace: dream-maas
   labels:
-    app: policy-manager
+    app: dream-policy-management
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: policy-manager
+      app: dream-policy-management
   template:
     metadata:
       labels:
-        app: policy-manager
+        app: dream-policy-management
     spec:
+      automountServiceAccountToken: false
       nodeSelector:
-        kubernetes.io/hostname: cloudnode         # stay in cloud layer
+        kubernetes.io/hostname: cloudnode
       containers:
-      - name: policy-manager
-        image: henok28/policy-manager:v1.0
-        imagePullPolicy: IfNotPresent
-        env:
-        - name: SDN_CONTROLLER_URL
-          value: "http://onos-controller.micro-onos.svc.cluster.local:8181/onos/v1"
-        - name: SDN_CONTROLLER_USER
-          valueFrom:
-            secretKeyRef:
-              name: onos-credentials
-              key: SDN_CONTROLLER_USER
-        - name: SDN_CONTROLLER_PASS
-          valueFrom:
-            secretKeyRef:
-              name: onos-credentials
-              key: SDN_CONTROLLER_PASS
+      - name: policy-management
+        image: henok28/dream-policy-management:0.1.0
+        imagePullPolicy: Always
         ports:
-        - containerPort: 5002
-          name: http
+        - name: http
+          containerPort: 8090
+        env:
+        - name: POLICY_PATH
+          value: /config/policies.json
+        readinessProbe:
+          httpGet:
+            path: /healthz
+            port: http
+          initialDelaySeconds: 3
+          periodSeconds: 5
         livenessProbe:
           httpGet:
             path: /healthz
             port: http
           initialDelaySeconds: 10
-          periodSeconds: 20
-        readinessProbe:
-          httpGet:
-            path: /readyz
-            port: http
-          initialDelaySeconds: 5
           periodSeconds: 10
         resources:
           requests:
-            cpu: 100m
-            memory: 128Mi
+            cpu: 50m
+            memory: 64Mi
           limits:
-            cpu: 500m
+            cpu: 250m
             memory: 256Mi
-
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop: ["ALL"]
+          runAsNonRoot: true
+          runAsUser: 10002
+        volumeMounts:
+        - name: policy-rules
+          mountPath: /config
+          readOnly: true
+      volumes:
+      - name: policy-rules
+        configMap:
+          name: dream-policy-rules
 ---
 apiVersion: v1
 kind: Service
 metadata:
-  name: policy-manager
-  namespace: microservices
+  name: dream-policy-management
+  namespace: dream-maas
 spec:
   selector:
-    app: policy-manager
+    app: dream-policy-management
   ports:
-  - port: 5002
+  - name: http
+    port: 8090
     targetPort: http
-    protocol: TCP
   type: ClusterIP

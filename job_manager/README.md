@@ -1,4 +1,4 @@
-# DREAM Job Manager v0.1.0
+# DREAM Job Manager v0.1.3
 
 One cloud-side Job Manager for `freenove-arm-01` and `ender3-printer-01`.
 It does not replace or modify the existing adapters, mappers, DeviceTwins,
@@ -9,7 +9,13 @@ OctoPrint integration, or ONOS/OVS paths.
 - Reads desired configuration from `Device.spec`.
 - Reads actual state from KubeEdge v1.23 `DeviceStatus.status.twins`.
 - Writes only `Device.spec.properties[name=requestedAction].desired`.
-- Uses the existing unpadded base64url JSON command envelope.
+- Writes the raw compact JSON command format accepted by the working mappers.
+- Requires an explicit `ALLOW` decision from DREAM Policy Management before
+  writing `requestedAction`.
+- Fails closed when Policy Management is unavailable or returns an invalid
+  response; the job remains queued and no device command is written.
+- Decodes the existing mapper `b64url:` acknowledgment format and distinguishes
+  `in_progress`, `succeeded`, and `rejected` outcomes.
 - Stores jobs and audit events in `/var/lib/dream/job-manager/jobs.db` on CloudNode.
 - Uses one replica and Kubernetes `Recreate` strategy for SQLite safety.
 
@@ -19,15 +25,15 @@ Initial allowlist:
 - Printer: `status_refresh`, `print_file`, `pause`, `cancel`
 
 No command is dispatched when a job is created. Dispatch requires a separate
-API call, enabling controlled validation before Policy Management is connected.
+API call, a fresh and eligible DeviceTwin, and an explicit policy decision.
 
 ## Build and deploy
 
 Run from this directory on a machine with Docker credentials for `henok28`:
 
 ```bash
-docker build -t henok28/dream-job-manager:0.1.0 .
-docker push henok28/dream-job-manager:0.1.0
+docker build --no-cache -t henok28/dream-job-manager:0.1.3 .
+docker push henok28/dream-job-manager:0.1.3
 kubectl apply -f k8s/job-manager.yaml
 kubectl -n dream-maas rollout status deployment/dream-job-manager --timeout=180s
 kubectl -n dream-maas get pod -o wide
@@ -83,6 +89,6 @@ kubectl get devicestatus ender3-printer-01 -n default -o json | jq -r \
 
 ## Safety note
 
-Start only with `status_refresh`. Do not submit `print_file`, `pause`, `cancel`,
-or RobotArm actions until the safe status-refresh lifecycle and automatic reset
-have been captured successfully.
+The baseline policy allows only Ender-3 `status_refresh` with SLA class
+`validation`. It explicitly denies printer manufacturing controls and RobotArm
+physical controls until their authorization conditions are defined and tested.

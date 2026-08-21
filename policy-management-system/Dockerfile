@@ -1,31 +1,15 @@
-# syntax=docker/dockerfile:1
-FROM python:3.11-slim
+FROM python:3.12-slim
 
-# Install system packages your app (or wheels) may need
-RUN apt-get update && apt-get install -y --no-install-recommends \
-        build-essential curl && \
-    rm -rf /var/lib/apt/lists/*
-
-# Create non-root user for better security
-ENV APP_USER=policy
-RUN useradd --create-home --shell /usr/sbin/nologin $APP_USER
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1
 
 WORKDIR /app
-
-# Copy only requirements first to leverage Docker cache
 COPY requirements.txt .
-
-# Install Python deps
 RUN pip install --no-cache-dir -r requirements.txt
+COPY app.py engine.py ./
 
-# Now copy source code
-COPY . .
+RUN useradd --uid 10002 --create-home dream-policy
+USER 10002:10002
+EXPOSE 8090
 
-# Use unprivileged user
-USER $APP_USER
-
-# Expose service port
-EXPOSE 5002
-
-# ── gunicorn is preferred in production instead of flask’s dev server ──
-CMD ["gunicorn", "--bind", "0.0.0.0:5002", "policy_manager:app"]
+CMD ["gunicorn", "--bind", "0.0.0.0:8090", "--workers", "1", "--threads", "4", "--timeout", "30", "app:app"]

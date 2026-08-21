@@ -15,16 +15,23 @@ from core import (
     utcnow,
 )
 from kubeedge_client import KubeEdgeClient
+from policy_client import PolicyClient, PolicyProtocolError, PolicyUnavailable
 from store import JobStore
 
 
 DB_PATH = os.getenv("JOB_DB_PATH", "/data/jobs.db")
 DEVICE_NAMESPACE = os.getenv("DEVICE_NAMESPACE", "default")
 ACK_TIMEOUT_SECONDS = int(os.getenv("ACK_TIMEOUT_SECONDS", "60"))
+POLICY_URL = os.getenv(
+    "POLICY_URL",
+    "http://dream-policy-management:8090",
+)
+POLICY_TIMEOUT_SECONDS = float(os.getenv("POLICY_TIMEOUT_SECONDS", "3"))
 
 app = Flask(__name__)
 store = JobStore(DB_PATH)
 kube = KubeEdgeClient()
+policy = PolicyClient(POLICY_URL, POLICY_TIMEOUT_SECONDS)
 
 
 def error(message, status=400, **extra):
@@ -114,6 +121,66 @@ def dispatch(job_id):
     if not eligibility["eligible"]:
         store.add_event(job_id, "DISPATCH_BLOCKED", eligibility)
         return error("device is not eligible", 409, readiness=eligibility)
+
+    policy_request = {
+        "request_id": item["id"],
+        "subject": {
+            "type": "service",
+            "id": "dream-job-manager",
+        },
+        "job": {
+            "id": item["id"],
+            "command_id": item["command_id"],
+            "device_id": item["device_id"],
+            "device_kind": item["device_kind"],
+            "action": item["action"],
+            "parameters": item["parameters"],
+            "sla_class": item["sla_class"],
+        },
+        "context": {
+            "readiness": eligibility,
+        },
+    }
+    try:
+        policy_result = policy.evaluate(policy_request)
+    except (PolicyUnavailable, PolicyProtocolError) as exc:
+        store.update_state(
+            job_id,
+            "QUEUED",
+            "POLICY_UNAVAILABLE",
+            {"error": str(exc)},
+            policy_decision="ERROR",
+        )
+        return error("policy service unavailable; dispatch blocked", 503)
+
+    if policy_result["decision"] == "DENY":
+        reason = "; ".join(policy_result.get("reason_codes", []))
+        if not reason:
+            reason = "policy denied dispatch"
+        denied = store.update_state(
+            job_id,
+            "FAILED",
+            "POLICY_DENIED",
+            {"policy": policy_result},
+            policy_decision="DENY",
+            completed_at=iso_now(),
+            last_error=reason,
+        )
+        return error(
+            "policy denied dispatch",
+            403,
+            job=denied,
+            policy=policy_result,
+        )
+
+    store.update_state(
+        job_id,
+        "QUEUED",
+        "POLICY_ALLOWED",
+        {"policy": policy_result},
+        policy_decision="ALLOW",
+    )
+
     envelope, payload = encode_command(
         item["command_id"], item["id"], item["action"], item["parameters"]
     )
@@ -127,7 +194,11 @@ def dispatch(job_id):
         job_id,
         "DISPATCHED",
         "COMMAND_DISPATCHED",
-        {"command": payload, "readiness": eligibility},
+        {
+            "command": payload,
+            "readiness": eligibility,
+            "policy": policy_result,
+        },
         envelope_b64=envelope,
         dispatched_at=iso_now(),
     )

@@ -1,0 +1,39 @@
+{
+  "version": "baseline-2026-08-21.1",
+  "default_effect": "DENY",
+  "rules": [
+    {
+      "id": "allow-printer-status-refresh-validation",
+      "enabled": true,
+      "effect": "ALLOW",
+      "match": {
+        "device_ids": ["ender3-printer-01"],
+        "device_kinds": ["printer"],
+        "actions": ["status_refresh"],
+        "sla_classes": ["validation"],
+        "require_eligible": true
+      },
+      "reason_codes": ["safe_validation_action"]
+    },
+    {
+      "id": "deny-printer-physical-actions",
+      "enabled": true,
+      "effect": "DENY",
+      "match": {
+        "device_ids": ["ender3-printer-01"],
+        "actions": ["print_file", "pause", "cancel"]
+      },
+      "reason_codes": ["physical_action_not_authorized"]
+    },
+    {
+      "id": "deny-robot-physical-actions",
+      "enabled": true,
+      "effect": "DENY",
+      "match": {
+        "device_ids": ["freenove-arm-01"],
+        "actions": ["motor_enable"]
+      },
+      "reason_codes": ["physical_action_not_authorized"]
+    }
+  ]
+}
