@@ -1,0 +1,128 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: dream-maas
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: dream-job-manager
+  namespace: dream-maas
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: dream-job-manager-device-access
+rules:
+- apiGroups: ["devices.kubeedge.io"]
+  resources: ["devices"]
+  verbs: ["get", "list", "watch", "update", "patch"]
+- apiGroups: ["devices.kubeedge.io"]
+  resources: ["devicestatuses"]
+  verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: dream-job-manager-device-access
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: dream-job-manager-device-access
+subjects:
+- kind: ServiceAccount
+  name: dream-job-manager
+  namespace: dream-maas
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dream-job-manager
+  namespace: dream-maas
+  labels:
+    app: dream-job-manager
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: dream-job-manager
+  template:
+    metadata:
+      labels:
+        app: dream-job-manager
+    spec:
+      serviceAccountName: dream-job-manager
+      nodeSelector:
+        kubernetes.io/hostname: cloudnode
+      initContainers:
+      - name: initialize-data-directory
+        image: henok28/dream-job-manager:0.1.0
+        command: ["sh", "-c", "mkdir -p /data && chown -R 10001:10001 /data"]
+        securityContext:
+          runAsUser: 0
+        volumeMounts:
+        - name: job-data
+          mountPath: /data
+      containers:
+      - name: job-manager
+        image: henok28/dream-job-manager:0.1.0
+        imagePullPolicy: Always
+        ports:
+        - name: http
+          containerPort: 8080
+        env:
+        - name: JOB_DB_PATH
+          value: /data/jobs.db
+        - name: DEVICE_NAMESPACE
+          value: default
+        - name: ACK_TIMEOUT_SECONDS
+          value: "60"
+        readinessProbe:
+          httpGet:
+            path: /healthz
+            port: http
+          initialDelaySeconds: 3
+          periodSeconds: 5
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: http
+          initialDelaySeconds: 10
+          periodSeconds: 10
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+          limits:
+            cpu: 500m
+            memory: 512Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop: ["ALL"]
+          runAsNonRoot: true
+          runAsUser: 10001
+        volumeMounts:
+        - name: job-data
+          mountPath: /data
+      volumes:
+      - name: job-data
+        hostPath:
+          path: /var/lib/dream/job-manager
+          type: DirectoryOrCreate
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: dream-job-manager
+  namespace: dream-maas
+spec:
+  selector:
+    app: dream-job-manager
+  ports:
+  - name: http
+    port: 8080
+    targetPort: http
+  type: ClusterIP
