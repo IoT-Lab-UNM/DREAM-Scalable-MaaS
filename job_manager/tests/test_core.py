@@ -20,8 +20,15 @@ def status(device_id, twins, state="online"):
 
 class CoreTests(unittest.TestCase):
     def test_command_envelope(self):
-        encoded, payload = encode_command("c1", "j1", "status_refresh", {})
-        self.assertNotIn("=", encoded)
+        encoded, payload = encode_command(
+            "c1",
+            "j1",
+            "status_refresh",
+            {},
+        )
+
+        self.assertTrue(encoded.startswith("{"))
+        self.assertEqual(json.loads(encoded), payload)
         self.assertEqual(payload["command_id"], "c1")
 
     def test_robot_ready(self):

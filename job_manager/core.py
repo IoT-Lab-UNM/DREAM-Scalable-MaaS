@@ -1,4 +1,3 @@
-import base64
 import json
 from datetime import datetime, timezone
 
@@ -32,8 +31,14 @@ def encode_command(command_id, job_id, action, parameters):
         "action": action,
         "parameters": parameters,
     }
-    raw = json.dumps(payload, separators=(",", ":"), sort_keys=False).encode()
-    return base64.urlsafe_b64encode(raw).decode().rstrip("="), payload
+
+    raw_json = json.dumps(
+        payload,
+        separators=(",", ":"),
+        sort_keys=False,
+    )
+
+    return raw_json, payload
 
 
 def twins_to_map(device_status):
