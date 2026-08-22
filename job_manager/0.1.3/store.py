@@ -53,14 +53,6 @@ class JobStore:
                 CREATE INDEX IF NOT EXISTS idx_events_job ON events(job_id, id);
                 """
             )
-            columns = {
-                row["name"]
-                for row in conn.execute("PRAGMA table_info(jobs)").fetchall()
-            }
-            if "sla_decision" not in columns:
-                conn.execute(
-                    "ALTER TABLE jobs ADD COLUMN sla_decision TEXT NOT NULL DEFAULT 'NOT_EVALUATED'"
-                )
 
     @staticmethod
     def _job(row):
@@ -146,7 +138,7 @@ class JobStore:
         fields["updated_at"] = iso_now()
         allowed = {
             "state", "updated_at", "dispatched_at", "completed_at", "last_error",
-            "envelope_b64", "policy_decision", "sla_decision"
+            "envelope_b64", "policy_decision"
         }
         if not set(fields).issubset(allowed):
             raise ValueError("unsupported job field")

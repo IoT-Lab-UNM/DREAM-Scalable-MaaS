@@ -16,7 +16,6 @@ from core import (
 )
 from kubeedge_client import KubeEdgeClient
 from policy_client import PolicyClient, PolicyProtocolError, PolicyUnavailable
-from sla_client import SLAClient, SLAProtocolError, SLAUnavailable
 from store import JobStore
 
 
@@ -28,14 +27,11 @@ POLICY_URL = os.getenv(
     "http://dream-policy-management:8090",
 )
 POLICY_TIMEOUT_SECONDS = float(os.getenv("POLICY_TIMEOUT_SECONDS", "3"))
-SLA_URL = os.getenv("SLA_URL", "http://dream-sla-intelligence:8070")
-SLA_TIMEOUT_SECONDS = float(os.getenv("SLA_TIMEOUT_SECONDS", "3"))
 
 app = Flask(__name__)
 store = JobStore(DB_PATH)
 kube = KubeEdgeClient()
 policy = PolicyClient(POLICY_URL, POLICY_TIMEOUT_SECONDS)
-sla = SLAClient(SLA_URL, SLA_TIMEOUT_SECONDS)
 
 
 def error(message, status=400, **extra):
@@ -185,54 +181,6 @@ def dispatch(job_id):
         policy_decision="ALLOW",
     )
 
-    sla_request = {
-        "request_id": item["id"],
-        "job": {
-            "id": item["id"],
-            "command_id": item["command_id"],
-            "device_id": item["device_id"],
-            "device_kind": item["device_kind"],
-            "action": item["action"],
-            "sla_class": item["sla_class"],
-        },
-        "context": {
-            "readiness": eligibility,
-            "policy": policy_result,
-        },
-    }
-    try:
-        sla_result = sla.evaluate(sla_request)
-    except (SLAUnavailable, SLAProtocolError) as exc:
-        store.update_state(
-            job_id,
-            "QUEUED",
-            "SLA_UNAVAILABLE",
-            {"error": str(exc)},
-            sla_decision="ERROR",
-        )
-        return error("SLA service unavailable; dispatch blocked", 503)
-
-    if sla_result["decision"] == "REJECT":
-        reason = "; ".join(sla_result.get("reason_codes", [])) or "SLA rejected dispatch"
-        rejected = store.update_state(
-            job_id,
-            "FAILED",
-            "SLA_REJECTED",
-            {"sla": sla_result},
-            sla_decision="REJECT",
-            completed_at=iso_now(),
-            last_error=reason,
-        )
-        return error("SLA rejected dispatch", 409, job=rejected, sla=sla_result)
-
-    store.update_state(
-        job_id,
-        "QUEUED",
-        "SLA_ADMITTED",
-        {"sla": sla_result},
-        sla_decision="ADMIT",
-    )
-
     envelope, payload = encode_command(
         item["command_id"], item["id"], item["action"], item["parameters"]
     )
@@ -250,7 +198,6 @@ def dispatch(job_id):
             "command": payload,
             "readiness": eligibility,
             "policy": policy_result,
-            "sla": sla_result,
         },
         envelope_b64=envelope,
         dispatched_at=iso_now(),

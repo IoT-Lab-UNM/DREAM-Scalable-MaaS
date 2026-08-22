@@ -1,4 +1,4 @@
-# DREAM Job Manager v0.1.4
+# DREAM Job Manager v0.1.3
 
 One cloud-side Job Manager for `freenove-arm-01` and `ender3-printer-01`.
 It does not replace or modify the existing adapters, mappers, DeviceTwins,
@@ -14,10 +14,6 @@ OctoPrint integration, or ONOS/OVS paths.
   writing `requestedAction`.
 - Fails closed when Policy Management is unavailable or returns an invalid
   response; the job remains queued and no device command is written.
-- Requires an explicit `ADMIT` decision from DREAM SLA Intelligence after
-  Policy Management allows the request and before writing `requestedAction`.
-- Fails closed when SLA Intelligence is unavailable or malformed; an SLA
-  rejection fails the job without writing a device command.
 - Decodes the existing mapper `b64url:` acknowledgment format and distinguishes
   `in_progress`, `succeeded`, and `rejected` outcomes.
 - Stores jobs and audit events in `/var/lib/dream/job-manager/jobs.db` on CloudNode.
@@ -36,8 +32,8 @@ API call, a fresh and eligible DeviceTwin, and an explicit policy decision.
 Run from this directory on a machine with Docker credentials for `henok28`:
 
 ```bash
-docker build --no-cache -t henok28/dream-job-manager:0.1.4 .
-docker push henok28/dream-job-manager:0.1.4
+docker build --no-cache -t henok28/dream-job-manager:0.1.3 .
+docker push henok28/dream-job-manager:0.1.3
 kubectl apply -f k8s/job-manager.yaml
 kubectl -n dream-maas rollout status deployment/dream-job-manager --timeout=180s
 kubectl -n dream-maas get pod -o wide
@@ -94,6 +90,5 @@ kubectl get devicestatus ender3-printer-01 -n default -o json | jq -r \
 ## Safety note
 
 The baseline policy allows only Ender-3 `status_refresh` with SLA class
-`validation`. SLA Intelligence then admits only when the configured freshness,
-health, telemetry, and score targets are met. Policy explicitly denies printer manufacturing controls and RobotArm
+`validation`. It explicitly denies printer manufacturing controls and RobotArm
 physical controls until their authorization conditions are defined and tested.

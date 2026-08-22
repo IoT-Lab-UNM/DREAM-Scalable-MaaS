@@ -6,7 +6,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
-COPY app.py core.py store.py kubeedge_client.py policy_client.py sla_client.py ./
+COPY app.py core.py store.py kubeedge_client.py policy_client.py ./
 
 RUN useradd --uid 10001 --create-home dream
 USER 10001:10001

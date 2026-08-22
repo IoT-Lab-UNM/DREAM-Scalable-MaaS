@@ -1,0 +1,38 @@
+{
+  "version": "baseline-2026-08-22.1",
+  "classes": {
+    "validation": {
+      "description": "Safe baseline validation traffic; network telemetry is optional until edge agents are deployed.",
+      "max_freshness_age_seconds": 30,
+      "min_score": 70,
+      "require_network_telemetry": false,
+      "max_telemetry_age_seconds": 60,
+      "max_rtt_ms": 500,
+      "max_loss_percent": 5,
+      "max_jitter_ms": 100,
+      "max_queue_depth": 1
+    },
+    "standard": {
+      "description": "Normal manufacturing admission target.",
+      "max_freshness_age_seconds": 20,
+      "min_score": 75,
+      "require_network_telemetry": false,
+      "max_telemetry_age_seconds": 45,
+      "max_rtt_ms": 250,
+      "max_loss_percent": 2,
+      "max_jitter_ms": 50,
+      "max_queue_depth": 2
+    },
+    "priority": {
+      "description": "Strict target requiring current network telemetry.",
+      "max_freshness_age_seconds": 10,
+      "min_score": 85,
+      "require_network_telemetry": true,
+      "max_telemetry_age_seconds": 20,
+      "max_rtt_ms": 100,
+      "max_loss_percent": 1,
+      "max_jitter_ms": 20,
+      "max_queue_depth": 0
+    }
+  }
+}

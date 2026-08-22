@@ -1,0 +1,97 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: dream-maas
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: dream-sla-classes
+  namespace: dream-maas
+data:
+  sla-classes.json: |
+    {
+      "version": "baseline-2026-08-22.1",
+      "classes": {
+        "validation": {"description":"Safe baseline validation traffic; network telemetry is optional until edge agents are deployed.","max_freshness_age_seconds":30,"min_score":70,"require_network_telemetry":false,"max_telemetry_age_seconds":60,"max_rtt_ms":500,"max_loss_percent":5,"max_jitter_ms":100,"max_queue_depth":1},
+        "standard": {"description":"Normal manufacturing admission target.","max_freshness_age_seconds":20,"min_score":75,"require_network_telemetry":false,"max_telemetry_age_seconds":45,"max_rtt_ms":250,"max_loss_percent":2,"max_jitter_ms":50,"max_queue_depth":2},
+        "priority": {"description":"Strict target requiring current network telemetry.","max_freshness_age_seconds":10,"min_score":85,"require_network_telemetry":true,"max_telemetry_age_seconds":20,"max_rtt_ms":100,"max_loss_percent":1,"max_jitter_ms":20,"max_queue_depth":0}
+      }
+    }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dream-sla-intelligence
+  namespace: dream-maas
+  labels:
+    app: dream-sla-intelligence
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: dream-sla-intelligence
+  template:
+    metadata:
+      labels:
+        app: dream-sla-intelligence
+    spec:
+      nodeSelector:
+        kubernetes.io/hostname: cloudnode
+      containers:
+      - name: sla-intelligence
+        image: henok28/dream-sla-intelligence:0.1.0
+        imagePullPolicy: Always
+        ports:
+        - name: http
+          containerPort: 8070
+        env:
+        - name: SLA_CONFIG_PATH
+          value: /config/sla-classes.json
+        volumeMounts:
+        - name: sla-classes
+          mountPath: /config
+          readOnly: true
+        readinessProbe:
+          httpGet:
+            path: /readyz
+            port: http
+          initialDelaySeconds: 3
+          periodSeconds: 5
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: http
+          initialDelaySeconds: 10
+          periodSeconds: 10
+        resources:
+          requests:
+            cpu: 50m
+            memory: 64Mi
+          limits:
+            cpu: 250m
+            memory: 256Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop: ["ALL"]
+          runAsNonRoot: true
+          runAsUser: 10001
+      volumes:
+      - name: sla-classes
+        configMap:
+          name: dream-sla-classes
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: dream-sla-intelligence
+  namespace: dream-maas
+spec:
+  selector:
+    app: dream-sla-intelligence
+  ports:
+  - name: http
+    port: 8070
+    targetPort: http
+  type: ClusterIP
