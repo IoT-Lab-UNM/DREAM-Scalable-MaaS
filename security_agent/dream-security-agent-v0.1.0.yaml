@@ -1,0 +1,385 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: dream-security-agent-v0-1-0
+  namespace: edge-agents
+data:
+  security_agent.py: |
+    import base64
+    import json
+    import logging
+    import os
+    import signal
+    import threading
+    import time
+    import urllib.error
+    import urllib.request
+    from datetime import datetime, timezone
+    from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+
+    NODE_NAME = os.environ["NODE_NAME"]
+    NODE_CONFIG = json.loads(os.environ["NODE_CONFIG_JSON"])
+    CONFIG = NODE_CONFIG.get(NODE_NAME)
+    if not CONFIG:
+        raise SystemExit(f"No security-agent mapping for node {NODE_NAME!r}")
+
+    DEVICE_ID = CONFIG["device_id"]
+    DPID = CONFIG["dpid"]
+    SITE_ID = os.getenv("SITE_ID", "unm-lab")
+    ONOS_URL = os.getenv("ONOS_URL", "http://10.12.10.124:30181").rstrip("/")
+    ONOS_USERNAME = os.environ["ONOS_USERNAME"]
+    ONOS_PASSWORD = os.environ["ONOS_PASSWORD"]
+    ENFORCEMENT_MODE = os.getenv("ENFORCEMENT_MODE", "observe").lower()
+    POLL_INTERVAL_SECONDS = float(os.getenv("POLL_INTERVAL_SECONDS", "10"))
+    HTTP_TIMEOUT_SECONDS = float(os.getenv("HTTP_TIMEOUT_SECONDS", "5"))
+    METRICS_PORT = int(os.getenv("METRICS_PORT", "9102"))
+
+    if ENFORCEMENT_MODE != "observe":
+        raise SystemExit("Version 0.1.0 supports observation mode only")
+
+    credentials = base64.b64encode(
+        f"{ONOS_USERNAME}:{ONOS_PASSWORD}".encode("utf-8")
+    ).decode("ascii")
+    auth_headers = {
+        "Authorization": f"Basic {credentials}",
+        "Accept": "application/json",
+    }
+
+    logging.basicConfig(
+        level=os.getenv("LOG_LEVEL", "INFO"),
+        format="%(asctime)s %(levelname)s %(message)s",
+    )
+    state_lock = threading.Lock()
+    stop_event = threading.Event()
+    state = {
+        "last_poll_at": None,
+        "last_success_at": None,
+        "last_success_epoch": None,
+        "last_error": None,
+        "onos_up": False,
+        "device_available": False,
+        "flow_count": 0,
+        "drop_flow_count": 0,
+        "polls_total": 0,
+        "poll_failures_total": 0,
+        "enforcement_denied_total": 0,
+    }
+
+    def iso_now():
+        return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+
+    def onos_get(path):
+        request = urllib.request.Request(
+            ONOS_URL + path,
+            headers=auth_headers,
+            method="GET",
+        )
+        with urllib.request.urlopen(request, timeout=HTTP_TIMEOUT_SECONDS) as response:
+            return json.load(response)
+
+    def is_drop_flow(flow):
+        treatment = flow.get("treatment") or {}
+        instructions = treatment.get("instructions") or []
+        try:
+            priority = int(flow.get("priority", 0))
+        except (TypeError, ValueError):
+            priority = 0
+        return priority >= 40000 and len(instructions) == 0
+
+    def poll_once():
+        polled_at = iso_now()
+        with state_lock:
+            state["last_poll_at"] = polled_at
+            state["polls_total"] += 1
+        try:
+            devices_payload = onos_get("/onos/v1/devices")
+            devices = devices_payload.get("devices", [])
+            device = next((item for item in devices if item.get("id") == DPID), None)
+            available = bool(device and device.get("available") is True)
+
+            flows_payload = onos_get(f"/onos/v1/flows/{DPID}")
+            flows = flows_payload.get("flows", [])
+            if not isinstance(flows, list):
+                raise RuntimeError("ONOS flows response is not a list")
+
+            success_epoch = time.time()
+            with state_lock:
+                state["last_success_at"] = polled_at
+                state["last_success_epoch"] = success_epoch
+                state["last_error"] = None
+                state["onos_up"] = True
+                state["device_available"] = available
+                state["flow_count"] = len(flows)
+                state["drop_flow_count"] = sum(is_drop_flow(flow) for flow in flows)
+            logging.info(
+                "security_observation device_id=%s dpid=%s available=%s flows=%s drop_flows=%s",
+                DEVICE_ID,
+                DPID,
+                available,
+                len(flows),
+                sum(is_drop_flow(flow) for flow in flows),
+            )
+        except Exception as exc:
+            with state_lock:
+                state["last_error"] = str(exc)
+                state["onos_up"] = False
+                state["device_available"] = False
+                state["poll_failures_total"] += 1
+            logging.error(
+                "security_observation_failed device_id=%s dpid=%s error=%s",
+                DEVICE_ID,
+                DPID,
+                exc,
+            )
+
+    def snapshot():
+        with state_lock:
+            result = dict(state)
+        last_epoch = result.pop("last_success_epoch")
+        recent = bool(
+            last_epoch is not None
+            and time.time() - last_epoch <= max(25.0, POLL_INTERVAL_SECONDS * 2.5)
+        )
+        result.update(
+            {
+                "service": "dream-security-agent",
+                "version": "0.1.0",
+                "mode": ENFORCEMENT_MODE,
+                "node_name": NODE_NAME,
+                "device_id": DEVICE_ID,
+                "dpid": DPID,
+                "site_id": SITE_ID,
+                "ready": recent and result["onos_up"] and result["device_available"],
+            }
+        )
+        return result
+
+    def prometheus_text(current):
+        labels = (
+            f'device_id="{DEVICE_ID}",node="{NODE_NAME}",'
+            f'dpid="{DPID}",site_id="{SITE_ID}"'
+        )
+        gauges = {
+            "dream_security_agent_ready": 1 if current["ready"] else 0,
+            "dream_security_onos_up": 1 if current["onos_up"] else 0,
+            "dream_security_device_available": 1 if current["device_available"] else 0,
+            "dream_security_flow_count": current["flow_count"],
+            "dream_security_drop_flow_count": current["drop_flow_count"],
+        }
+        counters = {
+            "dream_security_polls_total": current["polls_total"],
+            "dream_security_poll_failures_total": current["poll_failures_total"],
+            "dream_security_enforcement_denied_total": current["enforcement_denied_total"],
+        }
+        lines = []
+        for name, value in gauges.items():
+            lines.extend([f"# TYPE {name} gauge", f'{name}{{{labels}}} {value}'])
+        for name, value in counters.items():
+            lines.extend([f"# TYPE {name} counter", f'{name}{{{labels}}} {value}'])
+        return "\n".join(lines) + "\n"
+
+    class Handler(BaseHTTPRequestHandler):
+        def send_json(self, status, payload):
+            body = json.dumps(payload, separators=(",", ":")).encode("utf-8")
+            self.send_response(status)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+
+        def do_GET(self):
+            current = snapshot()
+            if self.path == "/healthz":
+                self.send_json(
+                    200,
+                    {
+                        "status": "ok",
+                        "service": "dream-security-agent",
+                        "device_id": DEVICE_ID,
+                        "mode": ENFORCEMENT_MODE,
+                    },
+                )
+            elif self.path == "/readyz":
+                self.send_json(200 if current["ready"] else 503, current)
+            elif self.path == "/api/v1/status":
+                self.send_json(200, current)
+            elif self.path == "/metrics":
+                body = prometheus_text(current).encode("utf-8")
+                self.send_response(200)
+                self.send_header("Content-Type", "text/plain; version=0.0.4")
+                self.send_header("Content-Length", str(len(body)))
+                self.end_headers()
+                self.wfile.write(body)
+            else:
+                self.send_json(404, {"error": "not found"})
+
+        def do_POST(self):
+            if self.path != "/api/v1/enforce":
+                self.send_json(404, {"error": "not found"})
+                return
+            with state_lock:
+                state["enforcement_denied_total"] += 1
+            self.send_json(
+                403,
+                {
+                    "decision": "DENY",
+                    "reason": "enforcement_disabled_observation_mode",
+                    "mode": ENFORCEMENT_MODE,
+                    "device_id": DEVICE_ID,
+                    "dpid": DPID,
+                },
+            )
+
+        def log_message(self, *_args):
+            return
+
+    def serve_http():
+        server = ThreadingHTTPServer(("0.0.0.0", METRICS_PORT), Handler)
+        server.serve_forever()
+
+    def shutdown(_signum, _frame):
+        stop_event.set()
+
+    signal.signal(signal.SIGTERM, shutdown)
+    signal.signal(signal.SIGINT, shutdown)
+    threading.Thread(target=serve_http, name="security-http", daemon=True).start()
+    logging.info(
+        "security_agent_started node=%s device_id=%s dpid=%s mode=%s",
+        NODE_NAME,
+        DEVICE_ID,
+        DPID,
+        ENFORCEMENT_MODE,
+    )
+
+    while not stop_event.is_set():
+        started = time.monotonic()
+        poll_once()
+        remaining = max(0.0, POLL_INTERVAL_SECONDS - (time.monotonic() - started))
+        stop_event.wait(remaining)
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: dream-security-agent
+  namespace: edge-agents
+  labels:
+    app: dream-security-agent
+    app.kubernetes.io/version: "0.1.0"
+spec:
+  selector:
+    matchLabels:
+      app: dream-security-agent
+  updateStrategy:
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        app: dream-security-agent
+        app.kubernetes.io/version: "0.1.0"
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9102"
+        prometheus.io/path: /metrics
+    spec:
+      hostNetwork: true
+      dnsPolicy: Default
+      automountServiceAccountToken: false
+      terminationGracePeriodSeconds: 10
+      nodeSelector:
+        edge.kubeedge.io/exclude-cni: "true"
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: gateway-role
+                    operator: In
+                    values: [printer, robot]
+      tolerations:
+        - key: node-role.kubeedge.io/edge
+          operator: Exists
+          effect: NoSchedule
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: security-agent
+          image: python:3.12-slim
+          imagePullPolicy: IfNotPresent
+          command: ["python", "-u", "/app/security_agent.py"]
+          env:
+            - name: PYTHONDONTWRITEBYTECODE
+              value: "1"
+            - name: NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+            - name: NODE_CONFIG_JSON
+              value: '{"3dprinter":{"device_id":"ender3-printer-01","dpid":"of:0000000000000012"},"robotarm":{"device_id":"freenove-arm-01","dpid":"of:0000000000000011"}}'
+            - name: SITE_ID
+              value: unm-lab
+            - name: ONOS_URL
+              value: http://10.12.10.124:30181
+            - name: ONOS_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: dream-onos-rest-credentials
+                  key: username
+            - name: ONOS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: dream-onos-rest-credentials
+                  key: password
+            - name: ENFORCEMENT_MODE
+              value: observe
+            - name: POLL_INTERVAL_SECONDS
+              value: "10"
+            - name: HTTP_TIMEOUT_SECONDS
+              value: "5"
+            - name: METRICS_PORT
+              value: "9102"
+          ports:
+            - name: metrics
+              containerPort: 9102
+              protocol: TCP
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: metrics
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 2
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: metrics
+            initialDelaySeconds: 10
+            periodSeconds: 20
+            timeoutSeconds: 2
+            failureThreshold: 3
+          resources:
+            requests:
+              cpu: 20m
+              memory: 32Mi
+            limits:
+              cpu: 200m
+              memory: 96Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: agent-code
+              mountPath: /app/security_agent.py
+              subPath: security_agent.py
+              readOnly: true
+      volumes:
+        - name: agent-code
+          configMap:
+            name: dream-security-agent-v0-1-0
+            defaultMode: 0555
