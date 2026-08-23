@@ -1,0 +1,358 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: edge-agents
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: dream-telemetry-agent-v0-1-0
+  namespace: edge-agents
+data:
+  telemetry_agent.py: |
+    import json
+    import logging
+    import os
+    import signal
+    import socket
+    import statistics
+    import threading
+    import time
+    import urllib.error
+    import urllib.request
+    from datetime import datetime, timezone
+    from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+
+    NODE_NAME = os.environ["NODE_NAME"]
+    DEVICE_MAP = json.loads(os.environ["DEVICE_ID_MAP_JSON"])
+    DEVICE_ID = DEVICE_MAP.get(NODE_NAME)
+    SITE_ID = os.getenv("SITE_ID", "unm-lab")
+    CLOUD_HOST = os.getenv("CLOUD_HOST", "10.12.10.124")
+    MEASUREMENT_PORT = int(os.getenv("MEASUREMENT_PORT", "30070"))
+    SLA_TELEMETRY_URL = os.getenv(
+        "SLA_TELEMETRY_URL",
+        "http://10.12.10.124:30070/api/v1/telemetry",
+    )
+    JOBS_URL = os.getenv(
+        "JOBS_URL",
+        "http://10.12.10.124:30080/api/v1/jobs?limit=500",
+    )
+    INTERVAL_SECONDS = float(os.getenv("INTERVAL_SECONDS", "10"))
+    SAMPLE_COUNT = int(os.getenv("SAMPLE_COUNT", "5"))
+    CONNECT_TIMEOUT_SECONDS = float(os.getenv("CONNECT_TIMEOUT_SECONDS", "2"))
+    HTTP_TIMEOUT_SECONDS = float(os.getenv("HTTP_TIMEOUT_SECONDS", "5"))
+    METRICS_PORT = int(os.getenv("METRICS_PORT", "9101"))
+    ACTIVE_STATES = {"QUEUED", "DISPATCHED", "ACKNOWLEDGED"}
+
+    if not DEVICE_ID:
+        raise SystemExit(f"No DEVICE_ID mapping for node {NODE_NAME!r}")
+
+    logging.basicConfig(
+        level=os.getenv("LOG_LEVEL", "INFO"),
+        format="%(asctime)s %(levelname)s %(message)s",
+    )
+    state_lock = threading.Lock()
+    stop_event = threading.Event()
+    state = {
+        "last_attempt_at": None,
+        "last_success_at": None,
+        "last_success_epoch": None,
+        "last_error": None,
+        "metrics": {},
+        "samples_posted_total": 0,
+        "sample_failures_total": 0,
+    }
+
+    def iso_now():
+        return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+
+    def measure_service_path():
+        samples = []
+        failures = 0
+        for index in range(SAMPLE_COUNT):
+            started = time.perf_counter()
+            try:
+                with socket.create_connection(
+                    (CLOUD_HOST, MEASUREMENT_PORT),
+                    timeout=CONNECT_TIMEOUT_SECONDS,
+                ):
+                    samples.append((time.perf_counter() - started) * 1000.0)
+            except OSError:
+                failures += 1
+            if index + 1 < SAMPLE_COUNT:
+                time.sleep(0.2)
+        if not samples:
+            raise RuntimeError("all service-path connection samples failed")
+        return {
+            "rtt_ms": round(statistics.mean(samples), 3),
+            "loss_percent": round(100.0 * failures / SAMPLE_COUNT, 3),
+            "jitter_ms": round(statistics.pstdev(samples), 3) if len(samples) > 1 else 0.0,
+        }
+
+    def fetch_queue_depth():
+        with urllib.request.urlopen(JOBS_URL, timeout=HTTP_TIMEOUT_SECONDS) as response:
+            jobs = json.load(response)
+        if not isinstance(jobs, list):
+            raise RuntimeError("Job Manager response is not a list")
+        return sum(
+            1
+            for job in jobs
+            if job.get("device_id") == DEVICE_ID and job.get("state") in ACTIVE_STATES
+        )
+
+    def post_sample(metrics):
+        payload = {
+            "device_id": DEVICE_ID,
+            "site_id": SITE_ID,
+            "observed_at": iso_now(),
+            "metrics": metrics,
+        }
+        request = urllib.request.Request(
+            SLA_TELEMETRY_URL,
+            data=json.dumps(payload, separators=(",", ":")).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        with urllib.request.urlopen(request, timeout=HTTP_TIMEOUT_SECONDS) as response:
+            if response.status != 202:
+                raise RuntimeError(f"SLA telemetry endpoint returned HTTP {response.status}")
+            accepted = json.load(response)
+        return accepted
+
+    def sample_once():
+        attempted_at = iso_now()
+        with state_lock:
+            state["last_attempt_at"] = attempted_at
+        try:
+            metrics = measure_service_path()
+            metrics["queue_depth"] = fetch_queue_depth()
+            accepted = post_sample(metrics)
+            success_at = time.time()
+            with state_lock:
+                state["last_success_at"] = accepted.get("observed_at", attempted_at)
+                state["last_success_epoch"] = success_at
+                state["last_error"] = None
+                state["metrics"] = metrics
+                state["samples_posted_total"] += 1
+            logging.info(
+                "telemetry_posted device_id=%s metrics=%s",
+                DEVICE_ID,
+                json.dumps(metrics, separators=(",", ":")),
+            )
+        except Exception as exc:
+            with state_lock:
+                state["last_error"] = str(exc)
+                state["sample_failures_total"] += 1
+            logging.error("telemetry_failed device_id=%s error=%s", DEVICE_ID, exc)
+
+    def snapshot():
+        with state_lock:
+            result = dict(state)
+            result["metrics"] = dict(state["metrics"])
+        last_epoch = result.pop("last_success_epoch")
+        result["device_id"] = DEVICE_ID
+        result["node_name"] = NODE_NAME
+        result["site_id"] = SITE_ID
+        result["ready"] = bool(
+            last_epoch is not None
+            and time.time() - last_epoch <= max(25.0, INTERVAL_SECONDS * 2.5)
+        )
+        return result
+
+    def prometheus_text(current):
+        labels = f'device_id="{DEVICE_ID}",node="{NODE_NAME}",site_id="{SITE_ID}"'
+        metrics = current["metrics"]
+        lines = [
+            "# HELP dream_telemetry_agent_ready Whether the agent has posted a recent sample.",
+            "# TYPE dream_telemetry_agent_ready gauge",
+            f'dream_telemetry_agent_ready{{{labels}}} {1 if current["ready"] else 0}',
+            "# HELP dream_telemetry_samples_posted_total Samples accepted by SLA Intelligence.",
+            "# TYPE dream_telemetry_samples_posted_total counter",
+            f'dream_telemetry_samples_posted_total{{{labels}}} {current["samples_posted_total"]}',
+            "# HELP dream_telemetry_sample_failures_total Sampling or delivery failures.",
+            "# TYPE dream_telemetry_sample_failures_total counter",
+            f'dream_telemetry_sample_failures_total{{{labels}}} {current["sample_failures_total"]}',
+        ]
+        for name in ("rtt_ms", "loss_percent", "jitter_ms", "queue_depth"):
+            if name in metrics:
+                metric_name = f"dream_telemetry_{name}"
+                lines.extend(
+                    [
+                        f"# TYPE {metric_name} gauge",
+                        f'{metric_name}{{{labels}}} {metrics[name]}',
+                    ]
+                )
+        return "\n".join(lines) + "\n"
+
+    class Handler(BaseHTTPRequestHandler):
+        def send_json(self, status, payload):
+            body = json.dumps(payload, separators=(",", ":")).encode("utf-8")
+            self.send_response(status)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+
+        def do_GET(self):
+            current = snapshot()
+            if self.path == "/healthz":
+                self.send_json(200, {"status": "ok", "service": "dream-telemetry-agent", "device_id": DEVICE_ID})
+            elif self.path == "/readyz":
+                self.send_json(200 if current["ready"] else 503, current)
+            elif self.path == "/api/v1/status":
+                self.send_json(200, current)
+            elif self.path == "/metrics":
+                body = prometheus_text(current).encode("utf-8")
+                self.send_response(200)
+                self.send_header("Content-Type", "text/plain; version=0.0.4")
+                self.send_header("Content-Length", str(len(body)))
+                self.end_headers()
+                self.wfile.write(body)
+            else:
+                self.send_json(404, {"error": "not found"})
+
+        def log_message(self, *_args):
+            return
+
+    def serve_http():
+        server = ThreadingHTTPServer(("0.0.0.0", METRICS_PORT), Handler)
+        server.serve_forever()
+
+    def shutdown(_signum, _frame):
+        stop_event.set()
+
+    signal.signal(signal.SIGTERM, shutdown)
+    signal.signal(signal.SIGINT, shutdown)
+    threading.Thread(target=serve_http, name="telemetry-http", daemon=True).start()
+    logging.info("agent_started node=%s device_id=%s interval_seconds=%s", NODE_NAME, DEVICE_ID, INTERVAL_SECONDS)
+
+    while not stop_event.is_set():
+        started = time.monotonic()
+        sample_once()
+        remaining = max(0.0, INTERVAL_SECONDS - (time.monotonic() - started))
+        stop_event.wait(remaining)
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: dream-telemetry-agent
+  namespace: edge-agents
+  labels:
+    app: dream-telemetry-agent
+    app.kubernetes.io/version: "0.1.0"
+spec:
+  selector:
+    matchLabels:
+      app: dream-telemetry-agent
+  updateStrategy:
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        app: dream-telemetry-agent
+        app.kubernetes.io/version: "0.1.0"
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9101"
+        prometheus.io/path: /metrics
+    spec:
+      hostNetwork: true
+      dnsPolicy: Default
+      automountServiceAccountToken: false
+      terminationGracePeriodSeconds: 10
+      nodeSelector:
+        edge.kubeedge.io/exclude-cni: "true"
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: gateway-role
+                    operator: In
+                    values: [printer, robot]
+      tolerations:
+        - key: node-role.kubeedge.io/edge
+          operator: Exists
+          effect: NoSchedule
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: telemetry-agent
+          image: python:3.12-slim
+          imagePullPolicy: IfNotPresent
+          command: ["python", "-u", "/app/telemetry_agent.py"]
+          env:
+            - name: PYTHONDONTWRITEBYTECODE
+              value: "1"
+            - name: NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+            - name: DEVICE_ID_MAP_JSON
+              value: '{"3dprinter":"ender3-printer-01","robotarm":"freenove-arm-01"}'
+            - name: SITE_ID
+              value: unm-lab
+            - name: CLOUD_HOST
+              value: 10.12.10.124
+            - name: MEASUREMENT_PORT
+              value: "30070"
+            - name: SLA_TELEMETRY_URL
+              value: http://10.12.10.124:30070/api/v1/telemetry
+            - name: JOBS_URL
+              value: http://10.12.10.124:30080/api/v1/jobs?limit=500
+            - name: INTERVAL_SECONDS
+              value: "10"
+            - name: SAMPLE_COUNT
+              value: "5"
+            - name: CONNECT_TIMEOUT_SECONDS
+              value: "2"
+            - name: HTTP_TIMEOUT_SECONDS
+              value: "5"
+            - name: METRICS_PORT
+              value: "9101"
+          ports:
+            - name: metrics
+              containerPort: 9101
+              protocol: TCP
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: metrics
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 2
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: metrics
+            initialDelaySeconds: 10
+            periodSeconds: 20
+            timeoutSeconds: 2
+            failureThreshold: 3
+          resources:
+            requests:
+              cpu: 20m
+              memory: 32Mi
+            limits:
+              cpu: 200m
+              memory: 96Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: agent-code
+              mountPath: /app/telemetry_agent.py
+              subPath: telemetry_agent.py
+              readOnly: true
+      volumes:
+        - name: agent-code
+          configMap:
+            name: dream-telemetry-agent-v0-1-0
+            defaultMode: 0555
