@@ -225,22 +225,10 @@ data:
     # Flow inspection
     # ---------------------------------------------------------------------------
 
-    def is_drop_treatment(flow):
+    def is_drop_flow(flow):
         treatment = flow.get("treatment") or {}
         instructions = treatment.get("instructions") or []
 
-        # ONOS may represent a DROP either as an empty instruction list
-        # or normalize it to one or more NOACTION instructions.
-        if not instructions:
-            return True
-
-        return all(
-            instruction.get("type") == "NOACTION"
-            for instruction in instructions
-        )
-
-
-    def is_drop_flow(flow):
         try:
             priority = int(flow.get("priority", 0))
         except (TypeError, ValueError):
@@ -248,7 +236,7 @@ data:
 
         return (
             priority >= 40000
-            and is_drop_treatment(flow)
+            and len(instructions) == 0
         )
 
 
@@ -272,7 +260,10 @@ data:
         except (TypeError, ValueError):
             return False
 
-        if not is_drop_treatment(flow):
+        treatment = flow.get("treatment") or {}
+        instructions = treatment.get("instructions") or []
+
+        if instructions:
             return False
 
         in_port = get_in_port(flow)
