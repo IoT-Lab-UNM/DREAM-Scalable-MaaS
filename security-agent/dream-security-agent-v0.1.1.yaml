@@ -1179,7 +1179,12 @@ spec:
                   name: dream-onos-rest-credentials
                   key: password
             - name: ENFORCEMENT_MODE
-              value: observe
+              value: enforce
+            - name: AGENT_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: dream-security-agent-auth
+                  key: token
             - name: DREAM_FLOW_PRIORITY
               value: "49000"
             - name: DEVICE_OFPORT
