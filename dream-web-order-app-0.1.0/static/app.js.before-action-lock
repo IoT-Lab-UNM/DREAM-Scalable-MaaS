@@ -118,14 +118,8 @@ async function pollJob() {
   }
 }
 
-function setActionButtonsDisabled(disabled) {
-  document.querySelectorAll("button[data-action]").forEach((button) => {
-    button.disabled = disabled;
-  });
-}
-
 async function executeAction(actionKey, button) {
-  setActionButtonsDisabled(true);
+  button.disabled = true;
   $("lastAction").textContent = actionKey.replaceAll("_", " ").toUpperCase();
   addActivity(`Submitting ${actionKey}…`);
 
@@ -149,7 +143,7 @@ async function executeAction(actionKey, button) {
     $("inspector").textContent = JSON.stringify(detail, null, 2);
     addActivity(`Action failed: ${err.message}`, "bad");
   } finally {
-    setActionButtonsDisabled(false);
+    button.disabled = false;
   }
 }
 

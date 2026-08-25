@@ -31,7 +31,7 @@ spec:
         kubernetes.io/hostname: cloudnode
       containers:
         - name: web-order-app
-          image: henok28/dream-web-order-app:0.1.0
+          image: henok28/dream-web-order-app:0.1.1
           imagePullPolicy: Always
           ports:
             - containerPort: 8080

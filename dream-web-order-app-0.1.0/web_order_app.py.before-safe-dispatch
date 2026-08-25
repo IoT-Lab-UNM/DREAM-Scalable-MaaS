@@ -160,7 +160,6 @@ def run_action(action_key: str):
 
     started = time.time()
     idempotency_key = f"web-{action_key}-{int(time.time() * 1000)}"
-
     create_payload = {
         "device_id": spec["device_id"],
         "action": spec["action"],
@@ -169,17 +168,10 @@ def run_action(action_key: str):
         "sla_class": spec["sla_class"],
     }
 
-    # Create exactly ONE Job Manager job for this browser action.
-    create_body, create_status = jm_request(
-        "POST", "/api/v1/jobs", json=create_payload
-    )
-
+    create_body, create_status = jm_request("POST", "/api/v1/jobs", json=create_payload)
     if create_status >= 300:
-        REQUEST_COUNTER.labels(
-            spec["device_id"], spec["action"], "create_failed"
-        ).inc()
+        REQUEST_COUNTER.labels(spec["device_id"], spec["action"], "create_failed").inc()
         REQUEST_LATENCY.labels(spec["action"]).observe(time.time() - started)
-
         return jsonify({
             "stage": "create",
             "request": create_payload,
@@ -188,74 +180,18 @@ def run_action(action_key: str):
 
     job_id = create_body.get("id")
     if not job_id:
-        REQUEST_COUNTER.labels(
-            spec["device_id"], spec["action"], "invalid_create_response"
-        ).inc()
-        return jsonify({
-            "error": "job_manager_returned_no_job_id",
-            "job": create_body,
-        }), 502
+        REQUEST_COUNTER.labels(spec["device_id"], spec["action"], "invalid_create_response").inc()
+        return jsonify({"error": "job_manager_returned_no_job_id", "job": create_body}), 502
 
-    dispatch_body = {}
-    dispatch_status = 500
-    dispatch_attempts = 0
-
-    # Robot DeviceTwin reports every ~10 s and its freshness limit is 15 s.
-    # Retry the SAME job when dispatch is blocked only by twin_stale.
-    for attempt in range(1, 16):
-        dispatch_attempts = attempt
-
-        dispatch_body, dispatch_status = jm_request(
-            "POST", f"/api/v1/jobs/{job_id}/dispatch"
-        )
-
-        if dispatch_status < 300:
-            break
-
-        readiness = dispatch_body.get("readiness") or {}
-        reasons = readiness.get("reasons") or []
-
-        transient_twin_stale = (
-            dispatch_status == 409
-            and dispatch_body.get("error") == "device is not eligible"
-            and "twin_stale" in reasons
-        )
-
-        if transient_twin_stale:
-            time.sleep(1)
-            continue
-
-        # Any other rejection is real: policy, SLA, queue depth, etc.
-        break
-
-    # If the job is still QUEUED after dispatch failure, cancel that same job.
-    # This prevents failed browser clicks from accumulating queue depth.
-    cleanup = None
-
-    if dispatch_status >= 300:
-        job_body, job_status = jm_request(
-            "GET", f"/api/v1/jobs/{job_id}"
-        )
-
-        if job_status < 300 and job_body.get("state") == "QUEUED":
-            cleanup_body, cleanup_status = jm_request(
-                "POST", f"/api/v1/jobs/{job_id}/cancel"
-            )
-
-            cleanup = {
-                "http_status": cleanup_status,
-                "job": cleanup_body,
-            }
+    dispatch_body, dispatch_status = jm_request(
+        "POST", f"/api/v1/jobs/{job_id}/dispatch"
+    )
 
     result = "dispatched" if dispatch_status < 300 else "dispatch_failed"
-
-    REQUEST_COUNTER.labels(
-        spec["device_id"], spec["action"], result
-    ).inc()
-
+    REQUEST_COUNTER.labels(spec["device_id"], spec["action"], result).inc()
     REQUEST_LATENCY.labels(spec["action"]).observe(time.time() - started)
 
-    response = {
+    return jsonify({
         "action_key": action_key,
         "label": spec["label"],
         "physical": spec["physical"],
@@ -263,12 +199,8 @@ def run_action(action_key: str):
         "created": create_body,
         "dispatch": dispatch_body,
         "dispatch_http_status": dispatch_status,
-        "dispatch_attempts": dispatch_attempts,
-        "cleanup": cleanup,
         "submitted_at": now_iso(),
-    }
-
-    return jsonify(response), 200 if dispatch_status < 300 else dispatch_status
+    }), 200 if dispatch_status < 300 else dispatch_status
 
 
 @app.get("/api/jobs/<job_id>")
