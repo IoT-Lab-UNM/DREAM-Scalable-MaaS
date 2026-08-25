@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>DREAM Manufacturing-as-a-Service | Workshop Console</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <main class="page">
+    <section class="hero">
+      <div>
+        <div class="eyebrow">NSF DREAM · UNM TESTBED</div>
+        <h1>Manufacturing-as-a-Service <span>Workshop Console</span></h1>
+        <p>Browser → Job Manager → Policy → SLA → KubeEdge DeviceTwin → physical manufacturing device</p>
+      </div>
+      <div class="hero-actions">
+        <button id="refreshDevices" class="secondary">Refresh Device State</button>
+      </div>
+    </section>
+
+    <section class="status-strip">
+      <div><small>Job Manager</small><strong id="backendState">Checking…</strong></div>
+      <div><small>Ender-3</small><strong id="printerState">Checking…</strong></div>
+      <div><small>Printer eligibility</small><strong id="printerEligible">—</strong></div>
+      <div><small>RobotArm</small><strong id="robotState">Checking…</strong></div>
+      <div><small>Robot eligibility</small><strong id="robotEligible">—</strong></div>
+      <div><small>Last action</small><strong id="lastAction">—</strong></div>
+    </section>
+
+    <section class="workbench">
+      <article class="device-panel printer-panel">
+        <div class="device-heading">
+          <div>
+            <div class="device-kicker">ADDITIVE MANUFACTURING</div>
+            <h2>Creality Ender-3</h2>
+            <p><code>ender3-printer-01</code></p>
+          </div>
+          <span id="printerBadge" class="badge neutral">UNKNOWN</span>
+        </div>
+
+        <div class="device-grid">
+          <div><small>Printer state</small><strong id="printerTwinState">—</strong></div>
+          <div><small>Progress</small><strong id="printerProgress">—</strong></div>
+          <div><small>Active job</small><strong id="printerActiveJob">—</strong></div>
+          <div><small>Fault</small><strong id="printerFault">—</strong></div>
+        </div>
+
+        <div class="action-row">
+          <button data-action="printer_status" class="secondary">Refresh Printer Status</button>
+          <button data-action="printer_cube" class="danger-aware">Print Calibration Cube</button>
+        </div>
+        <p class="safety-note">Physical print requires the existing <code>confirmPhysicalStart=true</code> policy guard.</p>
+      </article>
+
+      <article class="device-panel robot-panel">
+        <div class="device-heading">
+          <div>
+            <div class="device-kicker">ROBOTIC MANUFACTURING</div>
+            <h2>Freenove RobotArm</h2>
+            <p><code>freenove-arm-01</code></p>
+          </div>
+          <span id="robotBadge" class="badge neutral">UNKNOWN</span>
+        </div>
+
+        <div class="device-grid">
+          <div><small>Operating state</small><strong id="robotTwinState">—</strong></div>
+          <div><small>Current task</small><strong id="robotCurrentTask">—</strong></div>
+          <div><small>Fault</small><strong id="robotFault">—</strong></div>
+          <div><small>Known demo position</small><strong>X0 Y200 Z45</strong></div>
+        </div>
+
+        <div class="action-row">
+          <button data-action="robot_home" class="danger-aware">Sensor Home</button>
+          <button data-action="robot_move_home" class="danger-aware">Move to Demo Home</button>
+        </div>
+        <p class="safety-note">Robot actions use fixed validated commands and require <code>confirmPhysicalMotion=true</code>. Keep the workspace clear.</p>
+      </article>
+    </section>
+
+    <section class="pipeline">
+      <h2>Live MaaS Control Path</h2>
+      <div class="pipeline-row">
+        <div class="pipe-card">Web Order App<small>Workshop request</small></div>
+        <div class="arrow">→</div>
+        <div class="pipe-card">Job Manager<small>Create + dispatch</small></div>
+        <div class="arrow">→</div>
+        <div class="pipe-card">Policy<small>ALLOW / DENY</small></div>
+        <div class="arrow">→</div>
+        <div class="pipe-card">SLA Intelligence<small>ADMIT / REJECT</small></div>
+        <div class="arrow">→</div>
+        <div class="pipe-card">DeviceTwin<small>KubeEdge</small></div>
+        <div class="arrow">→</div>
+        <div class="pipe-card">Physical Device<small>Printer / Robot</small></div>
+      </div>
+    </section>
+
+    <section class="inspector">
+      <div>
+        <h3>Last Job</h3>
+        <div class="decision-grid">
+          <div><small>Job ID</small><strong id="jobId">—</strong></div>
+          <div><small>State</small><strong id="jobState">—</strong></div>
+          <div><small>Policy</small><strong id="policyDecision">—</strong></div>
+          <div><small>SLA</small><strong id="slaDecision">—</strong></div>
+        </div>
+        <pre id="inspector">No workshop action submitted yet.</pre>
+      </div>
+      <div>
+        <h3>Activity</h3>
+        <div id="activity" class="activity"><div class="activity-empty">Waiting for an action.</div></div>
+      </div>
+    </section>
+  </main>
+
+  <div id="confirmModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="confirmTitle">
+    <div class="modal-card">
+      <h2 id="confirmTitle">Confirm physical action</h2>
+      <p id="confirmText"></p>
+      <div class="modal-actions">
+        <button id="confirmCancel" class="secondary">Cancel</button>
+        <button id="confirmProceed">Proceed</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>
