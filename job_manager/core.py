@@ -8,7 +8,7 @@ DEVICE_PROFILES = {
     "freenove-arm-01": {
         "kind": "robot",
         "freshness_seconds": 15,
-        "actions": {"motor_enable"},
+        "actions": {"motor_enable", "sensor_home", "move_xyz"},
     },
     "ender3-printer-01": {
         "kind": "printer",
