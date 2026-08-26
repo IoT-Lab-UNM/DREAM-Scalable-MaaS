@@ -1,0 +1,529 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: monitoring
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: prometheus-config
+  namespace: monitoring
+data:
+  prometheus.yml: |
+    global:
+      scrape_interval: 5s
+      evaluation_interval: 5s
+
+    scrape_configs:
+
+      - job_name: "printer-telemetry"
+        static_configs:
+          - targets:
+              - "10.12.10.78:9101"
+            labels:
+              device: "Ender-3"
+              device_id: "ender3-printer-01"
+              site: "UNM Lab"
+
+      - job_name: "printer-security"
+        static_configs:
+          - targets:
+              - "10.12.10.78:9102"
+            labels:
+              device: "Ender-3"
+              device_id: "ender3-printer-01"
+              site: "UNM Lab"
+
+      - job_name: "robot-telemetry"
+        static_configs:
+          - targets:
+              - "10.12.11.228:9101"
+            labels:
+              device: "RobotArm"
+              device_id: "freenove-arm-01"
+              site: "UNM Lab"
+
+      - job_name: "robot-security"
+        static_configs:
+          - targets:
+              - "10.12.11.228:9102"
+            labels:
+              device: "RobotArm"
+              device_id: "freenove-arm-01"
+              site: "UNM Lab"
+
+      - job_name: "web-order-app"
+        metrics_path: /metrics
+        static_configs:
+          - targets:
+              - "web-order-app.dream-maas.svc.cluster.local:8080"
+            labels:
+              component: "web-order-app"
+              site: "UNM Lab"
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: prometheus
+  namespace: monitoring
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: prometheus
+  template:
+    metadata:
+      labels:
+        app: prometheus
+    spec:
+      nodeSelector:
+        kubernetes.io/hostname: cloudnode
+      containers:
+        - name: prometheus
+          image: prom/prometheus:latest
+          imagePullPolicy: IfNotPresent
+          args:
+            - "--config.file=/etc/prometheus/prometheus.yml"
+            - "--storage.tsdb.path=/prometheus"
+            - "--storage.tsdb.retention.time=7d"
+          ports:
+            - containerPort: 9090
+          volumeMounts:
+            - name: config
+              mountPath: /etc/prometheus
+      volumes:
+        - name: config
+          configMap:
+            name: prometheus-config
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: prometheus
+  namespace: monitoring
+spec:
+  type: NodePort
+  selector:
+    app: prometheus
+  ports:
+    - port: 9090
+      targetPort: 9090
+      nodePort: 30091
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-datasource
+  namespace: monitoring
+data:
+  datasource.yaml: |
+    apiVersion: 1
+
+    datasources:
+      - name: DREAM Prometheus
+        type: prometheus
+        access: proxy
+        url: http://prometheus.monitoring.svc.cluster.local:9090
+        isDefault: true
+        editable: false
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboard-provider
+  namespace: monitoring
+data:
+  dashboards.yaml: |
+    apiVersion: 1
+
+    providers:
+      - name: DREAM
+        orgId: 1
+        folder: DREAM Workshop
+        type: file
+        disableDeletion: false
+        editable: true
+        options:
+          path: /var/lib/grafana/dashboards
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: dream-workshop-dashboard
+  namespace: monitoring
+data:
+  dream-workshop.json: |
+    {
+      "annotations": {
+        "list": []
+      },
+      "editable": true,
+      "graphTooltip": 1,
+      "panels": [
+        {
+          "type": "stat",
+          "title": "Edge Devices Ready",
+          "id": 1,
+          "gridPos": {"h": 5, "w": 6, "x": 0, "y": 0},
+          "targets": [
+            {
+              "expr": "sum(dream_telemetry_agent_ready)",
+              "legendFormat": "Ready devices"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "min": 0,
+              "max": 2,
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {"color": "red", "value": null},
+                  {"color": "yellow", "value": 1},
+                  {"color": "green", "value": 2}
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "reduceOptions": {
+              "calcs": ["lastNotNull"],
+              "fields": "",
+              "values": false
+            },
+            "colorMode": "background",
+            "graphMode": "area",
+            "justifyMode": "auto"
+          }
+        },
+        {
+          "type": "stat",
+          "title": "ONOS / SDN Connectivity",
+          "id": 2,
+          "gridPos": {"h": 5, "w": 6, "x": 6, "y": 0},
+          "targets": [
+            {
+              "expr": "sum(dream_security_onos_up)",
+              "legendFormat": "Connected switches"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "min": 0,
+              "max": 2,
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {"color": "red", "value": null},
+                  {"color": "yellow", "value": 1},
+                  {"color": "green", "value": 2}
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "reduceOptions": {
+              "calcs": ["lastNotNull"],
+              "fields": "",
+              "values": false
+            },
+            "colorMode": "background",
+            "graphMode": "area",
+            "justifyMode": "auto"
+          }
+        },
+        {
+          "type": "stat",
+          "title": "Active Security Enforcement",
+          "id": 3,
+          "gridPos": {"h": 5, "w": 6, "x": 12, "y": 0},
+          "targets": [
+            {
+              "expr": "sum(dream_security_enforcement_active)",
+              "legendFormat": "Isolated devices"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "min": 0,
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {"color": "green", "value": null},
+                  {"color": "red", "value": 1}
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "reduceOptions": {
+              "calcs": ["lastNotNull"],
+              "fields": "",
+              "values": false
+            },
+            "colorMode": "background",
+            "graphMode": "area",
+            "justifyMode": "auto"
+          }
+        },
+        {
+          "type": "stat",
+          "title": "SDN Flow Count",
+          "id": 4,
+          "gridPos": {"h": 5, "w": 6, "x": 18, "y": 0},
+          "targets": [
+            {
+              "expr": "sum(dream_security_flow_count)",
+              "legendFormat": "Installed flows"
+            }
+          ],
+          "options": {
+            "reduceOptions": {
+              "calcs": ["lastNotNull"],
+              "fields": "",
+              "values": false
+            },
+            "colorMode": "value",
+            "graphMode": "area",
+            "justifyMode": "auto"
+          }
+        },
+        {
+          "type": "timeseries",
+          "title": "Device RTT",
+          "id": 5,
+          "gridPos": {"h": 8, "w": 12, "x": 0, "y": 5},
+          "targets": [
+            {
+              "expr": "dream_telemetry_rtt_ms",
+              "legendFormat": "{{device_id}}"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "ms"
+            },
+            "overrides": []
+          }
+        },
+        {
+          "type": "timeseries",
+          "title": "Network Jitter",
+          "id": 6,
+          "gridPos": {"h": 8, "w": 12, "x": 12, "y": 5},
+          "targets": [
+            {
+              "expr": "dream_telemetry_jitter_ms",
+              "legendFormat": "{{device_id}}"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "ms"
+            },
+            "overrides": []
+          }
+        },
+        {
+          "type": "timeseries",
+          "title": "Packet Loss",
+          "id": 7,
+          "gridPos": {"h": 8, "w": 8, "x": 0, "y": 13},
+          "targets": [
+            {
+              "expr": "dream_telemetry_loss_percent",
+              "legendFormat": "{{device_id}}"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "percent"
+            },
+            "overrides": []
+          }
+        },
+        {
+          "type": "timeseries",
+          "title": "SLA Queue Depth",
+          "id": 8,
+          "gridPos": {"h": 8, "w": 8, "x": 8, "y": 13},
+          "targets": [
+            {
+              "expr": "dream_telemetry_queue_depth",
+              "legendFormat": "{{device_id}}"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "min": 0
+            },
+            "overrides": []
+          }
+        },
+        {
+          "type": "timeseries",
+          "title": "Web MaaS Action Rate",
+          "id": 9,
+          "gridPos": {"h": 8, "w": 8, "x": 16, "y": 13},
+          "targets": [
+            {
+              "expr": "rate(maas_web_actions_total[1m])",
+              "legendFormat": "{{device_id}} / {{action}} / {{result}}"
+            }
+          ]
+        },
+        {
+          "type": "stat",
+          "title": "Successful Security Enforcements",
+          "id": 10,
+          "gridPos": {"h": 6, "w": 8, "x": 0, "y": 21},
+          "targets": [
+            {
+              "expr": "sum(dream_security_enforcement_success_total)",
+              "legendFormat": "Success"
+            }
+          ],
+          "options": {
+            "reduceOptions": {
+              "calcs": ["lastNotNull"],
+              "fields": "",
+              "values": false
+            },
+            "colorMode": "value",
+            "graphMode": "area",
+            "justifyMode": "auto"
+          }
+        },
+        {
+          "type": "stat",
+          "title": "Authentication Failures",
+          "id": 11,
+          "gridPos": {"h": 6, "w": 8, "x": 8, "y": 21},
+          "targets": [
+            {
+              "expr": "sum(dream_security_authentication_failures_total)",
+              "legendFormat": "Authentication failures"
+            }
+          ],
+          "options": {
+            "reduceOptions": {
+              "calcs": ["lastNotNull"],
+              "fields": "",
+              "values": false
+            },
+            "colorMode": "value",
+            "graphMode": "area",
+            "justifyMode": "auto"
+          }
+        },
+        {
+          "type": "stat",
+          "title": "Web Actions",
+          "id": 12,
+          "gridPos": {"h": 6, "w": 8, "x": 16, "y": 21},
+          "targets": [
+            {
+              "expr": "sum(maas_web_actions_total)",
+              "legendFormat": "Total actions"
+            }
+          ],
+          "options": {
+            "reduceOptions": {
+              "calcs": ["lastNotNull"],
+              "fields": "",
+              "values": false
+            },
+            "colorMode": "value",
+            "graphMode": "area",
+            "justifyMode": "auto"
+          }
+        }
+      ],
+      "refresh": "5s",
+      "schemaVersion": 39,
+      "tags": ["DREAM", "MaaS", "Workshop"],
+      "templating": {
+        "list": []
+      },
+      "time": {
+        "from": "now-30m",
+        "to": "now"
+      },
+      "timezone": "browser",
+      "title": "DREAM MaaS Workshop Dashboard",
+      "uid": "dream-maas-workshop",
+      "version": 1
+    }
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: grafana
+  namespace: monitoring
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: grafana
+  template:
+    metadata:
+      labels:
+        app: grafana
+    spec:
+      nodeSelector:
+        kubernetes.io/hostname: cloudnode
+      containers:
+        - name: grafana
+          image: grafana/grafana:latest
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: GF_SECURITY_ADMIN_USER
+              value: admin
+            - name: GF_SECURITY_ADMIN_PASSWORD
+              value: dream-workshop
+            - name: GF_USERS_ALLOW_SIGN_UP
+              value: "false"
+          ports:
+            - containerPort: 3000
+          volumeMounts:
+            - name: datasource
+              mountPath: /etc/grafana/provisioning/datasources
+            - name: dashboard-provider
+              mountPath: /etc/grafana/provisioning/dashboards
+            - name: dashboard
+              mountPath: /var/lib/grafana/dashboards
+      volumes:
+        - name: datasource
+          configMap:
+            name: grafana-datasource
+        - name: dashboard-provider
+          configMap:
+            name: grafana-dashboard-provider
+        - name: dashboard
+          configMap:
+            name: dream-workshop-dashboard
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: grafana
+  namespace: monitoring
+spec:
+  type: NodePort
+  selector:
+    app: grafana
+  ports:
+    - port: 3000
+      targetPort: 3000
+      nodePort: 30092
