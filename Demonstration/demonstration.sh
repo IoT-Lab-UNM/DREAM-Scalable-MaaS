@@ -235,12 +235,12 @@ kubectl -n sdn get pods -o wide
 
 Enter into ONOS:
 %%%%%%%%%%%%%%%%%%%
-ONOS_POD=$(kubectl -n sdn get pods -l app=onos-controller -o jsonpath='{.items[0].metadata.name}')
-echo "$ONOS_POD"
+ONOS_POD="onos-controller-5f4f9f5b8c-tpqkr"
 
 kubectl -n sdn exec -it "$ONOS_POD" -- /bin/bash
 
 Enter the Karaf CLI — inside the ONOS container:
+%%%%%%%%%%%%
 cd /root/onos/apache-karaf-4.2.14/bin
 ./client
 
