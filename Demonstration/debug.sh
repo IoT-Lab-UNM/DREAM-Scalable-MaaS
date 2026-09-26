@@ -115,3 +115,5 @@ kubectl patch device freenove-arm-01 -n default \
 
 echo "RobotArm motor_relax command sent."
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+# Restart mapper service when the 3d printer isnt available
+sudo systemctl restart dream-printer-mapper.service
