@@ -1,5 +1,11 @@
 Step 1: opening state:
 
+# Terminal 1 — Job Manager
+kubectl -n dream-maas port-forward --address 0.0.0.0 service/dream-job-manager 18080:8080
+
+# Terminal 2 — SLA Intelligence
+kubectl -n dream-maas port-forward --address 0.0.0.0 service/dream-sla-intelligence 18070:8070
+
 echo
 echo "--- MaaS services ---"
 kubectl -n dream-maas get pods -o wide
